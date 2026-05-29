@@ -19,3 +19,5 @@
 - Work through each checklist item systematically.
 - Keep communication concise and focused.
 - Follow development best practices.
+- Use professional language only and do not use emojis.
+- Follow SOLID principles and prefer modular, class based design where appropriate.

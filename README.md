@@ -24,3 +24,11 @@ Monorepo scaffold with a FastAPI backend and a Next.js frontend. Supabase is pla
 ## Notes
 - No business logic is implemented yet. This is a baseline scaffold.
 - Supabase integration placeholders are in the env templates.
+
+## Contributing
+- Follow branching rules in .github/branching-conventions.md.
+- Use the PR template in .github/pull_request_template.md.
+- Follow design and language rules in .github/agent-instructions.md.
+- See CONTRIBUTING.md for workflow details.
+- See SECURITY.md for vulnerability reporting.
+- See CHANGELOG.md for release history.
