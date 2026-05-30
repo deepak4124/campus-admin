@@ -95,7 +95,6 @@ erDiagram
     text reason
     timestamptz created_at
   }
-}
 ```
 
 ## Entity Details
