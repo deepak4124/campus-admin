@@ -39,6 +39,14 @@ A centralized database-driven architecture will be adopted.
 
 Student and faculty information will be maintained in dedicated master tables and referenced by all operational modules.
 
+The initial implementation will use Supabase Postgres with:
+
+* UUID primary keys
+* timestamptz for created_at and updated_at columns
+* Row Level Security enabled on all tables
+* Admin-only access policies (select/insert/update/delete)
+* Single-school setup (no multi-tenant partitioning)
+
 ### Student Management
 
 A Student Master table will serve as the primary source of truth for student information including:
@@ -48,6 +56,14 @@ A Student Master table will serve as the primary source of truth for student inf
 * Parent details
 * Class assignment
 * Enrollment status
+
+Student profile data will capture the application form fields, including:
+
+* Mother tongue
+* Blood group
+* Allergy food (if any)
+
+Parent and emergency-contact information will be stored in dedicated tables to avoid repeating fields on the student record.
 
 An Admissions table will store admission-specific information separately from student profile information.
 
@@ -186,6 +202,9 @@ Columns:
 * last_name
 * dob
 * gender
+* mother_tongue
+* blood_group
+* allergy_food
 * class_id (FK)
 * parent_name
 * parent_phone
@@ -208,6 +227,62 @@ Columns:
 * admission_fee
 * joining_class
 * notes
+* created_at
+
+#### student_parents
+
+Stores parent information captured from application forms.
+
+Columns:
+
+* parent_id (PK)
+* student_id (FK)
+* father_name
+* father_occupation
+* father_phone
+* mother_name
+* mother_occupation
+* mother_phone
+* created_at
+
+#### student_emergency_contacts
+
+Stores emergency contact order and phone numbers.
+
+Columns:
+
+* contact_id (PK)
+* student_id (FK)
+* priority (1, 2, 3)
+* contact_name
+* relation
+* phone
+* created_at
+
+#### student_siblings
+
+Stores sibling information when provided.
+
+Columns:
+
+* sibling_id (PK)
+* student_id (FK)
+* full_name
+* dob
+* school_name
+* created_at
+
+#### student_references
+
+Stores reference information when provided.
+
+Columns:
+
+* reference_id (PK)
+* student_id (FK)
+* reference_details
+* reference_through
+* reference_phone
 * created_at
 
 #### student_attendance
@@ -288,6 +363,14 @@ Classes (1) → (N) Students
 
 Students (1) → (1) Admissions
 
+Students (1) → (1) Student Parents
+
+Students (1) → (N) Emergency Contacts
+
+Students (1) → (N) Siblings
+
+Students (1) → (N) References
+
 Students (1) → (N) Student Attendance
 
 Students (1) → (N) Receipts
@@ -350,6 +433,9 @@ Not chosen because:
 
 ## Implementation Notes
 
+* Use UUID primary keys for all tables.
+* Use timestamptz for created_at and updated_at timestamps.
+* Enable Supabase RLS on all tables and apply admin-only policies for select/insert/update/delete.
 * Attendance should default students and faculty to Present to reduce administrative effort.
 * Receipt numbers should be generated automatically and remain immutable.
 * PDF generation service should be reusable across receipts and attendance reports.
