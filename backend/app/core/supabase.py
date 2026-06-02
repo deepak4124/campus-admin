@@ -16,6 +16,7 @@ class SupabaseTable:
         self._table = table
         self._select = "*"
         self._limit = None
+        self._filters = {}
 
     def select(self, columns: str):
         self._select = columns
@@ -28,10 +29,20 @@ class SupabaseTable:
     def insert(self, payload):
         return self._client._request("POST", self._table, json_body=payload)
 
+    def eq(self, column: str, value):
+        self._filters[column] = f"eq.{value}"
+        return self
+
+    def delete(self):
+        if not self._filters:
+            raise ValueError("Delete requires at least one filter")
+        return self._client._request("DELETE", self._table, params=self._filters)
+
     def execute(self):
         params = {"select": self._select}
         if self._limit is not None:
             params["limit"] = str(self._limit)
+        params.update(self._filters)
         return self._client._request("GET", self._table, params=params)
 
 

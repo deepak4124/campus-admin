@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-from secrets import token_hex
 from typing import Any, Dict, List, Optional
 
 from app.schemas.application import ApplicationSubmission
@@ -10,55 +8,54 @@ class ApplicationService:
         self.supabase = supabase_client
 
     def create_application(self, payload: ApplicationSubmission) -> Dict[str, Any]:
+        student_id = None
         student_data = payload.student.model_dump(exclude_none=True)
-        student_data["admission_no"] = self._generate_admission_no()
-        student_response = (
-            self.supabase.table("students").insert(student_data)
-        )
-        student = self._first_row(student_response)
-        student_id = student["student_id"]
 
-        admission = None
-        if payload.admission:
-            admission_data = payload.admission.model_dump(exclude_none=True)
-            admission_data["student_id"] = student_id
-            admission_response = (
-                self.supabase.table("admissions").insert(admission_data)
+        try:
+            student_response = self.supabase.table("students").insert(student_data)
+            student = self._first_row(student_response)
+            student_id = student["student_id"]
+
+            if payload.admission:
+                admission_data = payload.admission.model_dump(exclude_none=True)
+                admission_data["student_id"] = student_id
+                admission_response = (
+                    self.supabase.table("admissions").insert(admission_data)
+                )
+                self._first_row(admission_response)
+
+            if payload.parents:
+                parent_data = payload.parents.model_dump(exclude_none=True)
+                parent_data["student_id"] = student_id
+                parent_response = (
+                    self.supabase.table("student_parents").insert(parent_data)
+                )
+                self._first_row(parent_response)
+
+            self._insert_children(
+                "student_emergency_contacts",
+                student_id,
+                payload.emergency_contacts,
             )
-            admission = self._first_row(admission_response)
-
-        parents = None
-        if payload.parents:
-            parent_data = payload.parents.model_dump(exclude_none=True)
-            parent_data["student_id"] = student_id
-            parent_response = (
-                self.supabase.table("student_parents").insert(parent_data)
+            self._insert_children(
+                "student_siblings",
+                student_id,
+                payload.siblings,
             )
-            parents = self._first_row(parent_response)
-
-        emergency_contacts = self._insert_children(
-            "student_emergency_contacts",
-            student_id,
-            payload.emergency_contacts,
-        )
-        siblings = self._insert_children(
-            "student_siblings",
-            student_id,
-            payload.siblings,
-        )
-        references = self._insert_children(
-            "student_references",
-            student_id,
-            payload.references,
-        )
+            self._insert_children(
+                "student_references",
+                student_id,
+                payload.references,
+            )
+        except Exception:
+            if student_id:
+                self._rollback_student_application(student_id)
+            raise
 
         return {
-            "student": student,
-            "admission": admission,
-            "parents": parents,
-            "emergency_contacts": emergency_contacts,
-            "siblings": siblings,
-            "references": references,
+            "application_id": student_id,
+            "admission_no": student["admission_no"],
+            "status": "submitted",
         }
 
     def _insert_children(
@@ -79,10 +76,19 @@ class ApplicationService:
         response = self.supabase.table(table).insert(rows)
         return response.data or []
 
-    @staticmethod
-    def _generate_admission_no() -> str:
-        now = datetime.now(timezone.utc)
-        return f"ADM-{now:%Y%m%d}-{token_hex(3).upper()}"
+    def _rollback_student_application(self, student_id: str) -> None:
+        for table in (
+            "student_references",
+            "student_siblings",
+            "student_emergency_contacts",
+            "student_parents",
+            "admissions",
+            "students",
+        ):
+            try:
+                self.supabase.table(table).eq("student_id", student_id).delete()
+            except Exception:
+                pass
 
     @staticmethod
     def _first_row(response) -> Dict[str, Any]:

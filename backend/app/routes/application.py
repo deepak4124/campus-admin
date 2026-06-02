@@ -19,10 +19,7 @@ async def submit_application(payload: ApplicationSubmission, request: Request):
         logger.exception("Application submission failed")
         raise HTTPException(
             status_code=502,
-            detail={
-                "message": "Application submission failed",
-                "error": str(exc),
-            },
+            detail="Application submission failed",
         ) from exc
 
     return data
