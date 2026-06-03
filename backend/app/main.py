@@ -9,20 +9,27 @@ from app.routes.directory import router as directory_router
 from app.routes.receipt import router as receipt_router
 
 
+import os
+
 load_dotenv()
 
 app = FastAPI(title="School Admin Panel API")
 
+allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://[::1]:3000",
+    "http://127.0.0.1:8000",
+]
+env_origins = os.getenv("ALLOWED_ORIGINS")
+if env_origins:
+    allowed_origins.extend([origin.strip() for origin in env_origins.split(",") if origin.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://[::1]:3000",
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
