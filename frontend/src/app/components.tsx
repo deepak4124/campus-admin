@@ -757,14 +757,14 @@ export function AdmissionFormView() {
             <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", listStyleType: "disc" }}>
               <li style={{ marginBottom: "6px" }}>Children are not allowed to wear any gold ornaments, as the management is not responsible for loss of the same.</li>
               <li style={{ marginBottom: "6px" }}>Both boys and girls should keep their hair neat, fingernails short and clean.</li>
-              <li style={{ marginBottom: "6px" }}>If you pick up your child personally, child will be handed to parents only.</li>
+              <li style={{ marginBottom: "6px" }}>Child will be handed to parents only.</li>
               <li style={{ marginBottom: "6px" }}>The school shall remain closed on Saturday, Sunday and on all government holidays.</li>
             </ul>
 
             <h4 style={{ margin: "0 0 8px 0", color: "var(--accent)", fontSize: "16px" }}>Fees Details:</h4>
             <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px", listStyleType: "disc" }}>
-              <li style={{ marginBottom: "6px" }}><strong>Registration Fees :</strong> ₹ 5,000/-</li>
-              <li style={{ marginBottom: "6px" }}><strong>Monthly Fees :</strong> ₹ 2,000/- [April & May fees]</li>
+              {/* <li style={{ marginBottom: "6px" }}><strong>Registration Fees :</strong> ₹ 5,000/-</li>
+              <li style={{ marginBottom: "6px" }}><strong>Monthly Fees :</strong> ₹ 2,000/- [April & May fees]</li> */}
               <li style={{ marginBottom: "6px" }}><strong>Total Annual Fees :</strong> ₹ 28,000/- (Net fees must be paid before March of the academic year)</li>
               <li style={{ marginBottom: "6px" }}><strong>Details should be submitted :</strong> Birth Certificate, 3 Passport size photos</li>
             </ul>
