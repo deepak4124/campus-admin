@@ -265,19 +265,28 @@ export function FeeManagementView() {
               </div>
             </form>
 
-            {students.length > 1 ? (
-              <div className="search-results" aria-label="Student search results">
-                {students.map((student) => (
-                  <button
-                    className={student.student_id === selectedStudent?.student_id ? "selected" : ""}
-                    key={student.student_id}
-                    type="button"
-                    onClick={() => setSelectedStudent(student)}
-                  >
-                    <span>{studentName(student)}</span>
-                    <small>{student.admission_no ?? "No admission number"}</small>
-                  </button>
-                ))}
+            {students.length > 0 ? (
+              <div className="search-results-dropdown-container">
+                <label className="section-label" htmlFor="student-select">
+                  Select Student from Results
+                </label>
+                <select
+                  id="student-select"
+                  className="student-select-dropdown"
+                  value={selectedStudent?.student_id ?? ""}
+                  onChange={(event) => {
+                    const found = students.find((s) => s.student_id === event.target.value);
+                    if (found) {
+                      setSelectedStudent(found);
+                    }
+                  }}
+                >
+                  {students.map((student) => (
+                    <option key={student.student_id} value={student.student_id}>
+                      {studentName(student)} ({student.admission_no ?? "No admission number"})
+                    </option>
+                  ))}
+                </select>
               </div>
             ) : null}
 
