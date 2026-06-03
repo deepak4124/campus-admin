@@ -59,7 +59,7 @@ class ReceiptService:
             "receipt_id": receipt_id,
             "receipt_number": receipt_number,
             "status": "created",
-            "email_status": self._email_status(payload.send_email, student),
+            "email_status": self._email_status(payload.send_email, student, payload.total_amount, receipt_number),
         }
 
     @staticmethod
@@ -77,7 +77,7 @@ class ReceiptService:
     def _get_student_for_receipt(self, student_id: str) -> Dict[str, Any]:
         response = (
             self.supabase.table("students")
-            .select("student_id,parent_email")
+            .select("student_id,parent_email,first_name,last_name")
             .eq("student_id", student_id)
             .limit(1)
             .execute()
@@ -87,12 +87,27 @@ class ReceiptService:
         return response.data[0]
 
     @staticmethod
-    def _email_status(send_email: bool, student: Dict[str, Any]) -> str:
+    def _email_status(send_email: bool, student: Dict[str, Any], amount: float = 0.0, receipt_number: str = "N/A") -> str:
         if not send_email:
             return "not_requested"
-        if not student.get("parent_email"):
+        parent_email = student.get("parent_email")
+        if not parent_email:
             return "missing_parent_email"
-        return "not_implemented"
+        
+        student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or "Student"
+        
+        # Schedule the email sending task asynchronously
+        from app.services.email_service import EmailService
+        import asyncio
+        asyncio.create_task(
+            EmailService.send_receipt_email(
+                parent_email=parent_email,
+                student_name=student_name,
+                amount=amount,
+                receipt_number=receipt_number
+            )
+        )
+        return "sent"
 
     @staticmethod
     def _first_row(response) -> Dict[str, Any]:

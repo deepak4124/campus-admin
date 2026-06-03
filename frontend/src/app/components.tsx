@@ -35,6 +35,7 @@ type ApiStudent = {
   parent_phone?: string;
   parent_email?: string;
   status?: string;
+  photo_url?: string;
 };
 
 type ApiSearchStudentsResponse = {
@@ -92,10 +93,10 @@ const PHONE_LOCATIONS = [
   { label: "Malaysia", code: "+60" },
 ];
 
-const FEE_CATEGORIES = ["Tuition Fee", "Transport Fee", "Annual Sports Fund", "Admission Fee", "Meal Plan", "Books & Materials"];
+const FEE_CATEGORIES = ["Tuition Fee", "Academic Fee", "Miscellaneous"];
 
 const navItems: Array<{ label: string; href: string; icon: IconName; }> = [
-  { label: "Dashboard", href: "/", icon: "grid" },
+  { label: "Dashboard", href: "/dashboard", icon: "grid" },
   { label: "Students", href: "/students", icon: "students" },
   { label: "Student Attendance", href: "/student-attendance", icon: "calendar" },
   { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" },
@@ -139,20 +140,6 @@ export function DashboardLayout({ children, title }: { children: ReactNode; titl
       <div className="fee-main" id="dashboard-main">
         <header className="fee-topbar">
           <h2>{title || "Dashboard"}</h2>
-          <div className="top-actions">
-            <label className="global-search">
-              <Icon name="search" />
-              <input aria-label="Global search" placeholder="Global search..." />
-            </label>
-            <button className="icon-button" type="button" aria-label="Notifications" onClick={() => alert("No new notifications.")}>
-              <Icon name="bell" />
-            </button>
-            <button className="icon-button" type="button" aria-label="Settings" onClick={() => alert("Settings will be available after auth is integrated.")}>
-              <Icon name="settings" />
-            </button>
-            <span className="top-divider" />
-            <Avatar />
-          </div>
         </header>
 
         <div className="fee-content">{children}</div>
@@ -242,12 +229,25 @@ export function FeeManagementView() {
     }
   }
 
-  function sendWhatsappReceipt() {
+  async function sendEmailReceipt() {
     if (!selectedStudent) {
       setPaymentStatus("Select a student before sending a receipt.");
       return;
     }
-    setPaymentStatus("WhatsApp sending is not implemented in the backend yet. Receipt creation is connected.");
+    const parentEmail = selectedStudent.parent_email;
+    if (!parentEmail) {
+      setPaymentStatus("Cannot send receipt: Father's email address is missing for this student.");
+      return;
+    }
+    setPaymentStatus("Sending receipt to email...");
+    try {
+      await apiRequest<{ status: string; email: string }>(`/receipts/student/${selectedStudent.student_id}/send-email`, {
+        method: "POST",
+      });
+      setPaymentStatus(`Receipt successfully emailed to ${parentEmail}.`);
+    } catch (error) {
+      setPaymentStatus(error instanceof Error ? error.message : "Email sending failed.");
+    }
   }
 
   return (
@@ -282,13 +282,13 @@ export function FeeManagementView() {
             ) : null}
 
             <article className="student-card">
-              <Avatar variant="student" />
+              <Avatar variant="student" src={selectedStudent?.photo_url} />
               <h3>{selectedStudent ? studentName(selectedStudent) : "Leo Chen"}</h3>
               <p>Roll Number: {selectedStudent?.admission_no ?? "#2024-0892"}</p>
               <dl>
                 <div>
                   <dt>Class</dt>
-                  <dd>{selectedStudent?.class_name ?? "Grade 4"}</dd>
+                  <dd>{selectedStudent?.class_name ?? "Pre-School"}</dd>
                 </div>
                 <div>
                   <dt>Status</dt>
@@ -323,7 +323,7 @@ export function FeeManagementView() {
                     <tr key={receipt.receipt_id}>
                       <td>{receipt.receipt_items?.[0]?.fee_type ?? "Fee"}</td>
                       <td>{new Date(receipt.payment_date).toLocaleDateString()}</td>
-                      <td className="amount">${receipt.total_amount.toFixed(2)}</td>
+                      <td className="amount">₹{receipt.total_amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -340,8 +340,6 @@ export function FeeManagementView() {
                   ariaLabel="Payment method"
                   options={[
                     { label: "Cash", value: "cash" },
-                    { label: "Card", value: "card" },
-                    { label: "Transfer", value: "bank_transfer" },
                     { label: "UPI", value: "upi" },
                   ]}
                   value={paymentMethod}
@@ -353,9 +351,9 @@ export function FeeManagementView() {
                 <button className="primary-button" type="submit">
                   Register Payment
                 </button>
-                <button className="secondary-button" type="button" onClick={sendWhatsappReceipt}>
+                <button className="secondary-button" type="button" onClick={sendEmailReceipt}>
                   <Icon name="receipt" />
-                  Send WhatsApp Receipt
+                  Send Receipt to Email
                 </button>
               </div>
               {paymentStatus ? <p className="form-status">{paymentStatus}</p> : null}
@@ -368,12 +366,29 @@ export function FeeManagementView() {
 export function AdmissionFormView() {
   const [gender, setGender] = useState("Male");
   const [contacts, setContacts] = useState<EmergencyContact[]>([
-    { name: "Grandparent", phone: "+1 555-0123", relation: "Grandparent" },
+    { name: "Grandparent", phone: "9876543210", relation: "Grandparent" },
     { name: "", phone: "", relation: "" },
   ]);
   const [siblings, setSiblings] = useState<Sibling[]>([{ fullName: "", dob: "", school: "" }]);
   const [status, setStatus] = useState("");
   const [photoName, setPhotoName] = useState("");
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isFormValid, setIsFormValid] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    const form = document.querySelector(".admission-form") as HTMLFormElement | null;
+    if (form) {
+      setIsFormValid(form.checkValidity());
+    }
+  }, [contacts, siblings, gender]);
 
   function updateContact(index: number, key: keyof EmergencyContact, value: string) {
     setContacts((current) => current.map((contact, contactIndex) => (contactIndex === index ? { ...contact, [key]: value } : contact)));
@@ -399,27 +414,94 @@ export function AdmissionFormView() {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
+    
+    // Check validation of required inputs manually to find which ones are missing
+    const invalidFields: string[] = [];
+    const requiredInputs = form.querySelectorAll("input[required], select[required], textarea[required]");
+    requiredInputs.forEach((input) => {
+      const el = input as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+      if (!el.checkValidity()) {
+        let labelText = "";
+        const fieldLabel = el.closest(".form-field")?.querySelector(".field-label");
+        if (fieldLabel) {
+          labelText = fieldLabel.textContent?.replace("*", "").trim() || "";
+        }
+        if (!labelText) {
+          labelText = el.getAttribute("placeholder")?.replace("*", "").trim() 
+                   || el.name.replace("_", " ");
+        }
+        if (labelText) {
+          // Capitalize label text
+          labelText = labelText.charAt(0).toUpperCase() + labelText.slice(1);
+          if (!invalidFields.includes(labelText)) {
+            invalidFields.push(labelText);
+          }
+        }
+      }
+    });
+
+    // One emergency contact is mandatory
+    const hasFirstContact = contacts[0] && contacts[0].name.trim() && contacts[0].phone.trim() && contacts[0].relation.trim();
+    if (!hasFirstContact) {
+      if (!invalidFields.includes("First Emergency Contact (Name, Phone, Relation)")) {
+        invalidFields.push("First Emergency Contact (Name, Phone, Relation)");
+      }
+    }
+
+    // Terms is mandatory
+    const termsInput = form.querySelector('input[name="terms"]') as HTMLInputElement;
+    if (termsInput && !termsInput.checked) {
+      if (!invalidFields.includes("Terms and Conditions Declaration")) {
+        invalidFields.push("Terms and Conditions Declaration");
+      }
+    }
+
+    if (invalidFields.length > 0) {
+      setToast({
+        message: `Please fill in all required fields: ${invalidFields.join(", ")}`,
+        type: "error",
+      });
+      return;
+    }
+
     const fullName = String(formData.get("full_name") || "").trim();
     const { firstName, lastName } = splitName(fullName);
-
-    if (!firstName) {
-      setStatus("Enter the student's full name.");
-      return;
-    }
-    if (!formData.get("terms")) {
-      setStatus("Accept the terms and conditions before submitting.");
-      return;
-    }
 
     const fatherPhone = phoneValue(String(formData.get("father_phone_code")), String(formData.get("father_phone")));
     const motherPhone = phoneValue(String(formData.get("mother_phone_code")), String(formData.get("mother_phone")));
     const address = String(formData.get("address") || "").trim();
     const referenceName = String(formData.get("reference_name") || "").trim();
     const referencePhone = String(formData.get("reference_phone") || "").trim();
+    const parentEmail = String(formData.get("parent_email") || "").trim();
 
     setStatus("Submitting application...");
 
     try {
+      let photoUrl: string | undefined = undefined;
+      const photoFile = formData.get("photo") as File | null;
+      
+      if (photoFile && photoFile.size > 0) {
+        setStatus("Uploading student photo...");
+        const supabase = createClient();
+        const fileExt = photoFile.name.split('.').pop() || 'jpg';
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('student_photos')
+          .upload(fileName, photoFile);
+          
+        if (uploadError) {
+          throw new Error(`Photo upload failed: ${uploadError.message}`);
+        }
+        
+        const { data: publicUrlData } = supabase.storage
+          .from('student_photos')
+          .getPublicUrl(fileName);
+          
+        photoUrl = publicUrlData.publicUrl;
+        setStatus("Submitting application...");
+      }
+
       const data = await apiRequest<ApplicationResponse>("/applications", {
         method: "POST",
         body: JSON.stringify({
@@ -433,13 +515,15 @@ export function AdmissionFormView() {
             allergy_food: emptyToNull(String(formData.get("allergies") || "")),
             parent_name: emptyToNull(String(formData.get("father_name") || "")),
             parent_phone: fatherPhone || motherPhone || null,
+            parent_email: parentEmail || null,
             address: address || null,
             admission_date: new Date().toISOString().slice(0, 10),
             status: "active",
+            photo_url: photoUrl,
           }),
           admission: {
             admission_date: new Date().toISOString().slice(0, 10),
-            joining_class: "New Admission",
+            joining_class: "Pre-School",
             notes: "Submitted from public admission form",
           },
           parents: compactObject({
@@ -469,28 +553,59 @@ export function AdmissionFormView() {
         }),
       });
       localStorage.removeItem("blooming-daffodils-admission-draft");
-      setStatus(`Application ${data.status}. Admission number: ${data.admission_no ?? data.application_id}`);
+      const successMsg = `Application submitted successfully! Admission number: ${data.admission_no ?? data.application_id}`;
+      setStatus(successMsg);
+      setToast({ message: successMsg, type: "success" });
+      setPhotoPreview(null);
+      setPhotoName("");
       form.reset();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Application submission failed.");
+      const errMsg = error instanceof Error ? error.message : "Application submission failed.";
+      setStatus(errMsg);
+      setToast({ message: errMsg, type: "error" });
     }
   }
 
   return (
     <section className="admission-page" aria-label="Student Admission Form">
-      <AdmissionHeader />
+      <AdmissionTopBar />
+
+      {toast && (
+        <div className={`toast-notification ${toast.type}`}>
+          <span className="toast-message">{toast.message}</span>
+          <button className="toast-close" onClick={() => setToast(null)}>×</button>
+        </div>
+      )}
 
       <div className="form-title">
         <h2>Student Admission Form</h2>
         <p>Academic Year 2024-2025</p>
       </div>
 
-      <form className="admission-form" onSubmit={submitAdmission}>
+      <form 
+        className="admission-form" 
+        onSubmit={submitAdmission}
+        onChange={(e) => setIsFormValid(e.currentTarget.checkValidity())}
+        onInput={(e) => setIsFormValid(e.currentTarget.checkValidity())}
+        noValidate
+      >
         <FormSection icon="user" number="1." title="Student Information">
           <div className="student-grid">
             <div className="student-fields">
-              <Field label="Full Name" name="full_name" placeholder="Enter student's full name" />
-              <Field label="Date of Birth" name="dob" type="date" />
+              <Field 
+                label="Full Name" 
+                name="full_name" 
+                placeholder="Enter student's full name" 
+                required={true}
+                pattern="^[A-Za-z ]+$"
+                title="Full name must only contain alphabetic letters and spaces"
+              />
+              <Field 
+                label="Date of Birth" 
+                name="dob" 
+                type="date" 
+                required={true}
+              />
               <div className="form-field">
                 <span className="field-label">Gender</span>
                 <SegmentedControl
@@ -499,15 +614,33 @@ export function AdmissionFormView() {
                   options={[
                     { label: "Male", value: "Male" },
                     { label: "Female", value: "Female" },
-                    { label: "Other", value: "Other" },
                   ]}
                   value={gender}
                   onChange={setGender}
                 />
               </div>
-              <Field label="Mother Tongue" name="mother_tongue" placeholder="e.g. English, Spanish" value="English" />
-              <Field label="Blood Group" name="blood_group" options={BLOOD_GROUPS} type="select" value="A+" />
-              <Field label="Allergies" name="allergies" placeholder="Any food allergies" />
+              <Field 
+                label="Mother Tongue" 
+                name="mother_tongue" 
+                placeholder="e.g. English, Spanish" 
+                value="English" 
+                required={true}
+                pattern="^[A-Za-z]+$"
+                title="Mother tongue must only contain alphabetic letters"
+              />
+              <Field 
+                label="Blood Group" 
+                name="blood_group" 
+                options={BLOOD_GROUPS} 
+                type="select" 
+                value="A+" 
+                required={true}
+              />
+              <Field 
+                label="Allergies" 
+                name="allergies" 
+                placeholder="Any food allergies" 
+              />
             </div>
             <label className="photo-upload">
               <span>Student Photo</span>
@@ -515,12 +648,28 @@ export function AdmissionFormView() {
                 accept="image/png,image/jpeg"
                 className="visually-hidden"
                 type="file"
-                onChange={(event) => setPhotoName(event.target.files?.[0]?.name ?? "")}
+                name="photo"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    setPhotoName(file.name);
+                    setPhotoPreview(URL.createObjectURL(file));
+                  } else {
+                    setPhotoName("");
+                    setPhotoPreview(null);
+                  }
+                }}
               />
-              <div>
-                <Icon name="camera" />
-                <small>{photoName || "Drag & drop or click to upload"}</small>
-                <em>JPEG, PNG - max 2MB</em>
+              <div style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <>
+                    <Icon name="camera" />
+                    <small>{photoName || "Drag & drop or click to upload"}</small>
+                    <em>JPEG, PNG - max 2MB</em>
+                  </>
+                )}
               </div>
             </label>
           </div>
@@ -528,10 +677,10 @@ export function AdmissionFormView() {
 
         <FormSection icon="parents" number="2." title="Parents Information">
           <div className="parents-grid">
-            <ParentBlock title="Father's Details" name="Father's full name" prefix="father" />
+            <ParentBlock title="Father's Details" name="Father's full name" prefix="father" showEmail={true} />
             <ParentBlock title="Mother's Details" name="Mother's full name" prefix="mother" />
           </div>
-          <Field className="full-row desktop-address" label="Residential Address" name="address" placeholder="Street name, City, State, ZIP code" type="textarea" />
+          <Field className="full-row desktop-address" label="Residential Address" name="address" placeholder="Street name, City, State, ZIP code" type="textarea" required={true} />
         </FormSection>
 
         <FormSection icon="id" number="3." title="Emergency Contacts">
@@ -558,38 +707,71 @@ export function AdmissionFormView() {
 
         <FormSection icon="reference" number="5." title="Reference Details">
           <div className="reference-grid">
-            <Field label="Reference Name" name="reference_name" placeholder="Person who referred you" />
-            <Field label="Contact Number" name="reference_phone" placeholder="Reference phone number" />
+            <Field 
+              label="Reference Name" 
+              name="reference_name" 
+              placeholder="Person who referred you" 
+              pattern="^[A-Za-z ]+$"
+              title="Name must only contain alphabetic letters and spaces"
+            />
+            <Field 
+              label="Contact Number" 
+              name="reference_phone" 
+              placeholder="Reference phone number" 
+              maxLength={10}
+              pattern="^[0-9]{10}$"
+              title="Mobile number must be exactly 10 digits"
+              onInput={(e) => {
+                e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 10);
+              }}
+            />
           </div>
         </FormSection>
 
-        <FormSection icon="terms" number="6." title="Terms & Conditions">
-          <div className="terms-box">
-            <p>
-              <strong>1. Admission Policy:</strong> Submission of this form does not guarantee admission. Admissions are based on seat availability and assessment results.
+        <FormSection icon="terms" number="6." title="Terms & Conditions of Blooming Daffodils Play School">
+          <div className="terms-box" style={{ maxHeight: "none", overflow: "visible" }}>
+            <h4 style={{ margin: "0 0 8px 0", color: "var(--accent)", fontSize: "16px" }}>School Timings:</h4>
+            <p style={{ margin: "0 0 12px 0" }}>
+              <strong>For Play group & Pre KG :</strong> 9:30 AM - 12:30 PM
             </p>
-            <p>
-              <strong>2. Fee Structure:</strong> All fees are non-refundable and must be paid by the 5th of every month. Late payments will incur a penalty.
+            <p style={{ margin: "0 0 12px 0" }}>
+              Regular attendance and punctuality are desired. In case of long absence, a Medical Certificate should be produced.
             </p>
-            <p>
-              <strong>3. Health & Safety:</strong> Parents must disclose all medical conditions. The school is not liable for undisclosed health issues.
+            <p style={{ margin: "0 0 12px 0" }}>
+              Parents are requested to leave their children at school before 9:30 A.M. As it is requested that children be taught punctuality during their early childhood and parents play a key role in it.
             </p>
-            <p>
-              <strong>4. Documentation:</strong> Birth certificates and previous school records must be submitted within 7 days of provisional admission.
+            <p style={{ margin: "0 0 16px 0" }}>
+              Please be punctual for arrival & departure timings of school.
+            </p>
+
+            <h4 style={{ margin: "0 0 8px 0", color: "var(--accent)", fontSize: "16px" }}>Others:</h4>
+            <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", listStyleType: "disc" }}>
+              <li style={{ marginBottom: "6px" }}>Children are not allowed to wear any gold ornaments, as the management is not responsible for loss of the same.</li>
+              <li style={{ marginBottom: "6px" }}>Both boys and girls should keep their hair neat, fingernails short and clean.</li>
+              <li style={{ marginBottom: "6px" }}>If you pick up your child personally, child will be handed to parents only.</li>
+              <li style={{ marginBottom: "6px" }}>The school shall remain closed on Saturday, Sunday and on all government holidays.</li>
+            </ul>
+
+            <h4 style={{ margin: "0 0 8px 0", color: "var(--accent)", fontSize: "16px" }}>Fees Details:</h4>
+            <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px", listStyleType: "disc" }}>
+              <li style={{ marginBottom: "6px" }}><strong>Registration Fees :</strong> ₹ 5,000/-</li>
+              <li style={{ marginBottom: "6px" }}><strong>Monthly Fees :</strong> ₹ 2,000/- [April & May fees]</li>
+              <li style={{ marginBottom: "6px" }}><strong>Total Annual Fees :</strong> ₹ 28,000/- (Net fees must be paid before March of the academic year)</li>
+              <li style={{ marginBottom: "6px" }}><strong>Details should be submitted :</strong> Birth Certificate, 3 Passport size photos</li>
+            </ul>
+            <p style={{ margin: "12px 0", color: "#b91c1c", fontWeight: "800", textTransform: "uppercase", fontSize: "14px" }}>
+              FEES ONCE PAID WILL NOT BE REFUNDED AT ANY COST
             </p>
           </div>
-          <label className="check-row">
-            <input name="terms" type="checkbox" />
-            <span>I declare that I have read and understood the above instruction and fees details and agree to abide by the school regulations.</span>
+          <label className="check-row" style={{ marginTop: "16px", borderTop: "1px solid var(--border-soft)", paddingTop: "16px" }}>
+            <input name="terms" type="checkbox" required />
+            <span>I declare that I have read and understood the above instruction & Fees details.</span>
           </label>
         </FormSection>
 
         {status ? <p className="form-status">{status}</p> : null}
         <div className="admission-actions">
-          <button className="secondary-button" type="button" onClick={(event) => saveDraft(event.currentTarget.form!)}>
-            Save Draft
-          </button>
-          <button className="primary-button" type="submit">
+          <button className={`primary-button ${isFormValid ? "btn-ready" : "btn-not-ready"}`} type="submit">
             Submit Application
           </button>
         </div>
@@ -624,40 +806,52 @@ export function AdminPlaceholderView({ title, description, actionLabel, endpoint
   );
 }
 
-function AdmissionHeader() {
+function AdmissionTopBar() {
   return (
-    <header className="admission-header">
-      <div className="mobile-brand">
-        <Icon name="menu" />
-        <strong>Blooming Daffodils</strong>
-      </div>
-      <strong className="desktop-brand">
+    <header className="admission-top-bar">
+      <div className="brand-logo">
         <img src="/logo.jpg" alt="Blooming Daffodils Logo" className="school-logo" />
-        Blooming Daffodils
-      </strong>
-      <div className="admission-search">
-        <Icon name="search" />
-        <input placeholder="Search application..." aria-label="Search application" />
+        <span>Blooming Daffodils</span>
       </div>
-      <button className="icon-button" type="button" aria-label="Notifications" onClick={() => window.alert("No admission notifications yet.")}>
-        <Icon name="bell" />
-      </button>
-      <button className="icon-button" type="button" aria-label="Settings" onClick={() => window.alert("Public admission settings are managed by admins.")}>
-        <Icon name="settings" />
-      </button>
-      <Avatar />
+      <a href="/login" className="signin-btn">
+        Sign In
+      </a>
     </header>
   );
 }
 
-function ParentBlock({ title, name, prefix }: { title: string; name: string; prefix: "father" | "mother" }) {
+function ParentBlock({ title, name, prefix, showEmail }: { title: string; name: string; prefix: "father" | "mother"; showEmail?: boolean }) {
   return (
     <div className="parent-block">
       <h4>{title}</h4>
-      <Field label="Name" name={`${prefix}_name`} placeholder={name} />
-      <Field label="Occupation" name={`${prefix}_occupation`} placeholder="Current profession" />
+      <Field 
+        label="Name" 
+        name={`${prefix}_name`} 
+        placeholder={name} 
+        required={true} 
+        pattern="^[A-Za-z ]+$" 
+        title="Name must only contain alphabetic letters and spaces" 
+      />
+      <Field 
+        label="Occupation" 
+        name={`${prefix}_occupation`} 
+        placeholder="Current profession" 
+        required={true} 
+      />
+      {showEmail && (
+        <Field 
+          label="Email Address" 
+          name="parent_email" 
+          placeholder="parent@example.com" 
+          required={true}
+          type="email"
+        />
+      )}
       <div className="phone-row">
-        <span className="field-label">Mobile Number</span>
+        <span className="field-label">
+          Mobile Number
+          <span className="required-asterisk" style={{ color: "#ef4444", marginLeft: "4px" }}>*</span>
+        </span>
         <div>
           <select aria-label={`${title} country code`} name={`${prefix}_phone_code`}>
             {PHONE_LOCATIONS.map((location) => (
@@ -666,7 +860,17 @@ function ParentBlock({ title, name, prefix }: { title: string; name: string; pre
               </option>
             ))}
           </select>
-          <input name={`${prefix}_phone`} placeholder="Phone number" />
+          <input 
+            name={`${prefix}_phone`} 
+            placeholder="Phone number" 
+            required={true}
+            maxLength={10}
+            pattern="^[0-9]{10}$"
+            title="Mobile number must be exactly 10 digits"
+            onInput={(e) => {
+              e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 10);
+            }}
+          />
         </div>
       </div>
     </div>
@@ -674,12 +878,36 @@ function ParentBlock({ title, name, prefix }: { title: string; name: string; pre
 }
 
 function ContactRow({ contact, index, onChange }: { contact: EmergencyContact; index: number; onChange: (index: number, key: keyof EmergencyContact, value: string) => void }) {
+  const isMandatory = index === 0;
   return (
     <div className="contact-row">
       <span className={index === 0 ? "contact-number" : "contact-number muted"}>{index + 1}</span>
-      <input placeholder="Relation" value={contact.relation} onChange={(event) => onChange(index, "relation", event.target.value)} />
-      <input placeholder="Name" value={contact.name} onChange={(event) => onChange(index, "name", event.target.value)} />
-      <input placeholder="Contact Number" value={contact.phone} onChange={(event) => onChange(index, "phone", event.target.value)} />
+      <input 
+        placeholder={`Relation${isMandatory ? " *" : ""}`}
+        value={contact.relation} 
+        onChange={(event) => onChange(index, "relation", event.target.value)} 
+        required={isMandatory}
+      />
+      <input 
+        placeholder={`Name${isMandatory ? " *" : ""}`}
+        value={contact.name} 
+        onChange={(event) => onChange(index, "name", event.target.value)} 
+        required={isMandatory}
+        pattern="^[A-Za-z ]+$"
+        title="Name must only contain alphabetic letters and spaces"
+      />
+      <input 
+        placeholder={`Contact Number${isMandatory ? " *" : ""}`}
+        value={contact.phone} 
+        onChange={(event) => {
+          const val = event.target.value.replace(/\D/g, '').slice(0, 10);
+          onChange(index, "phone", val);
+        }} 
+        required={isMandatory}
+        maxLength={10}
+        pattern="^[0-9]{10}$"
+        title="Mobile number must be exactly 10 digits"
+      />
     </div>
   );
 }
@@ -717,6 +945,11 @@ function Field({
   placeholder,
   type = "text",
   value,
+  required,
+  maxLength,
+  pattern,
+  title,
+  onInput,
 }: {
   className?: string;
   label: string;
@@ -724,23 +957,37 @@ function Field({
   onChange?: (value: string) => void;
   options?: string[];
   placeholder?: string;
-  type?: "date" | "number" | "select" | "textarea" | "text" | "time";
+  type?: "date" | "number" | "select" | "textarea" | "text" | "time" | "email";
   value?: string;
+  required?: boolean;
+  maxLength?: number;
+  pattern?: string;
+  title?: string;
+  onInput?: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   const inputProps = useMemo(
     () => ({
       name,
+      required,
+      maxLength,
+      pattern,
+      title,
+      ...(onInput ? { onInput } : {}),
       ...(onChange ? { value: value ?? "", onChange: (event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value) } : { defaultValue: value }),
     }),
-    [name, onChange, value],
+    [name, onChange, onInput, value, required, maxLength, pattern, title],
   );
 
   return (
     <label className={`form-field ${className}`}>
-      <span className="field-label">{label}</span>
+      <span className="field-label">
+        {label}
+        {required && <span className="required-asterisk" style={{ color: "#ef4444", marginLeft: "4px" }}>*</span>}
+      </span>
       {type === "select" ? (
         <select
           name={name}
+          required={required}
           {...(onChange ? { value: value ?? "", onChange: (event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value) } : { defaultValue: value })}
         >
           {options.map((option) => (
@@ -748,7 +995,7 @@ function Field({
           ))}
         </select>
       ) : type === "textarea" ? (
-        <textarea name={name} placeholder={placeholder} />
+        <textarea name={name} placeholder={placeholder} required={required} />
       ) : (
         <input {...inputProps} placeholder={placeholder ?? (type === "time" ? "--:-- --" : "mm/dd/yyyy")} type={type} />
       )}
@@ -780,7 +1027,14 @@ function SegmentedControl({
   );
 }
 
-function Avatar({ variant = "profile" }: { variant?: "admin" | "profile" | "student" }) {
+function Avatar({ variant = "profile", src }: { variant?: "admin" | "profile" | "student"; src?: string }) {
+  if (src) {
+    return (
+      <span className={`avatar avatar-${variant}`} aria-hidden="true" style={{ overflow: "hidden", display: "inline-block" }}>
+        <img src={src} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      </span>
+    );
+  }
   return (
     <span className={`avatar avatar-${variant}`} aria-hidden="true">
       {variant === "student" ? <span /> : null}

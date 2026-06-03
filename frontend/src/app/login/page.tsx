@@ -31,7 +31,7 @@ export default function LoginPage() {
       setStatus(error.message);
       setLoading(false);
     } else {
-      window.location.href = "/";
+      window.location.href = "/dashboard";
     }
   }
 

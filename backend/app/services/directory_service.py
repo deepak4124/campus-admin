@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 class DirectoryService:
     STUDENT_SELECT = (
         "student_id,admission_no,first_name,last_name,class_id,parent_name,"
-        "parent_phone,parent_email,status"
+        "parent_phone,parent_email,status,photo_url"
     )
     CLASS_SELECT = "class_id,class_name,academic_year,class_teacher_id"
     FACULTY_SELECT = (
