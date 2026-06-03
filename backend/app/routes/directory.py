@@ -1,9 +1,10 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 
 from app.schemas.application import UUID_PATTERN
 from app.services.directory_service import DirectoryService
+from app.core.auth import get_current_user
 
 router = APIRouter(tags=["directory"])
 
@@ -14,6 +15,7 @@ async def search_students(
     q: str = Query(min_length=1, max_length=120),
     status: Optional[str] = Query(default="active", pattern=r"^(active|inactive)$"),
     limit: int = Query(default=10, ge=1, le=50),
+    current_user: dict = Depends(get_current_user),
 ):
     service = DirectoryService(request.app.state.supabase_admin)
 
@@ -24,7 +26,11 @@ async def search_students(
 
 
 @router.get("/students/{student_id}")
-async def get_student(student_id: str, request: Request):
+async def get_student(
+    student_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     if not _matches_uuid(student_id):
         raise HTTPException(status_code=422, detail="Invalid student_id")
 
@@ -39,7 +45,10 @@ async def get_student(student_id: str, request: Request):
 
 
 @router.get("/classes")
-async def list_classes(request: Request):
+async def list_classes(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     service = DirectoryService(request.app.state.supabase_admin)
 
     try:
@@ -53,6 +62,7 @@ async def list_students_by_class(
     class_id: str,
     request: Request,
     status: Optional[str] = Query(default="active", pattern=r"^(active|inactive)$"),
+    current_user: dict = Depends(get_current_user),
 ):
     if not _matches_uuid(class_id):
         raise HTTPException(status_code=422, detail="Invalid class_id")
@@ -70,6 +80,7 @@ async def list_faculty(
     request: Request,
     status: Optional[str] = Query(default="active", pattern=r"^(active|inactive)$"),
     limit: int = Query(default=100, ge=1, le=250),
+    current_user: dict = Depends(get_current_user),
 ):
     service = DirectoryService(request.app.state.supabase_admin)
 
@@ -85,6 +96,7 @@ async def search_faculty(
     q: str = Query(min_length=1, max_length=120),
     status: Optional[str] = Query(default="active", pattern=r"^(active|inactive)$"),
     limit: int = Query(default=10, ge=1, le=50),
+    current_user: dict = Depends(get_current_user),
 ):
     service = DirectoryService(request.app.state.supabase_admin)
 

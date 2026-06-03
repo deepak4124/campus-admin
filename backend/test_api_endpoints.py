@@ -122,7 +122,6 @@ def main():
                 {
                     "class_id": class_id,
                     "attendance_date": args.attendance_date,
-                    "marked_by": "api-smoke-test",
                     "records": attendance_records(
                         "student_id",
                         student_ids[: args.seed_count],
@@ -141,7 +140,6 @@ def main():
                 "/attendance/faculty",
                 {
                     "attendance_date": args.attendance_date,
-                    "marked_by": "api-smoke-test",
                     "records": attendance_records(
                         "faculty_id",
                         faculty_ids[: args.seed_count],
@@ -164,6 +162,9 @@ class ApiClient:
         return self._request("POST", path, payload=payload)
 
     def _request(self, method, path, params=None, payload=None):
+        env = load_env(BACKEND_DIR / ".env")
+        service_key = env.get("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        
         query = urllib.parse.urlencode(params or {})
         url = f"{self.base_url}{path}"
         if query:
@@ -171,6 +172,9 @@ class ApiClient:
 
         body = None
         headers = {"Accept": "application/json"}
+        if service_key:
+            headers["Authorization"] = f"Bearer {service_key}"
+            
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
