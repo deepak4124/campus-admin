@@ -16,6 +16,7 @@ class SupabaseTable:
         self._table = table
         self._select = "*"
         self._limit = None
+        self._order = None
         self._filters = {}
 
     def select(self, columns: str):
@@ -26,11 +27,46 @@ class SupabaseTable:
         self._limit = value
         return self
 
+    def order(self, column: str, desc: bool = False):
+        direction = "desc" if desc else "asc"
+        self._order = f"{column}.{direction}"
+        return self
+
     def insert(self, payload):
         return self._client._request("POST", self._table, json_body=payload)
 
+    def update(self, payload):
+        if not self._filters:
+            raise ValueError("Update requires at least one filter")
+        return self._client._request(
+            "PATCH",
+            self._table,
+            params=self._filters,
+            json_body=payload,
+        )
+
+    def upsert(self, payload, on_conflict=None):
+        params = {}
+        if on_conflict:
+            params["on_conflict"] = on_conflict
+        return self._client._request(
+            "POST",
+            self._table,
+            params=params,
+            json_body=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
     def eq(self, column: str, value):
         self._filters[column] = f"eq.{value}"
+        return self
+
+    def ilike(self, column: str, value: str):
+        self._filters[column] = f"ilike.{value}"
+        return self
+
+    def or_(self, expression: str):
+        self._filters["or"] = f"({expression})"
         return self
 
     def delete(self):
@@ -42,6 +78,8 @@ class SupabaseTable:
         params = {"select": self._select}
         if self._limit is not None:
             params["limit"] = str(self._limit)
+        if self._order is not None:
+            params["order"] = self._order
         params.update(self._filters)
         return self._client._request("GET", self._table, params=params)
 
@@ -54,7 +92,14 @@ class SupabaseRestClient:
     def table(self, table: str) -> SupabaseTable:
         return SupabaseTable(self, table)
 
-    def _request(self, method: str, table: str, params=None, json_body=None):
+    def _request(
+        self,
+        method: str,
+        table: str,
+        params=None,
+        json_body=None,
+        prefer="return=representation",
+    ):
         path = f"/rest/v1/{table}"
         query = urllib.parse.urlencode(params or {})
         url = f"{self._url}{path}"
@@ -65,7 +110,7 @@ class SupabaseRestClient:
             "apikey": self._key,
             "Authorization": f"Bearer {self._key}",
             "Content-Type": "application/json",
-            "Prefer": "return=representation",
+            "Prefer": prefer,
         }
 
         body = None

@@ -12,6 +12,7 @@ class ReceiptService:
     def create_receipt(self, payload: ReceiptSubmission) -> Dict[str, Any]:
         receipt_number = self._generate_receipt_number()
         receipt_id = None
+        student = self._get_student_for_receipt(payload.student_id)
 
         receipt_data = {
             "receipt_number": receipt_number,
@@ -48,6 +49,7 @@ class ReceiptService:
             "receipt_id": receipt_id,
             "receipt_number": receipt_number,
             "status": "created",
+            "email_status": self._email_status(payload.send_email, student),
         }
 
     @staticmethod
@@ -61,6 +63,26 @@ class ReceiptService:
                 self.supabase.table(table).eq("receipt_id", receipt_id).delete()
             except Exception:
                 pass
+
+    def _get_student_for_receipt(self, student_id: str) -> Dict[str, Any]:
+        response = (
+            self.supabase.table("students")
+            .select("student_id,parent_email")
+            .eq("student_id", student_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            raise LookupError("Student not found")
+        return response.data[0]
+
+    @staticmethod
+    def _email_status(send_email: bool, student: Dict[str, Any]) -> str:
+        if not send_email:
+            return "not_requested"
+        if not student.get("parent_email"):
+            return "missing_parent_email"
+        return "not_implemented"
 
     @staticmethod
     def _first_row(response) -> Dict[str, Any]:

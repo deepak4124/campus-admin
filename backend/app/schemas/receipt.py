@@ -22,6 +22,7 @@ class ReceiptSubmission(BaseModel):
     payment_method: str = Field(pattern=r"^(cash|upi|card|bank_transfer|cheque)$")
     total_amount: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
     notes: Optional[str] = Field(default=None, max_length=1000)
+    send_email: bool = False
     items: List[ReceiptItemInput] = Field(min_length=1, max_length=25)
 
     @model_validator(mode="after")

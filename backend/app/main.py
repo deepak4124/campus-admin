@@ -2,7 +2,9 @@ from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
 from app.core.supabase import get_supabase_admin_client, get_supabase_public_client
+from app.routes.attendance import router as attendance_router
 from app.routes.application import router as application_router
+from app.routes.directory import router as directory_router
 from app.routes.receipt import router as receipt_router
 
 
@@ -19,6 +21,8 @@ def startup():
 
 app.include_router(application_router)
 app.include_router(receipt_router)
+app.include_router(attendance_router)
+app.include_router(directory_router)
 
 
 @app.get("/health")

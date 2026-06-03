@@ -12,6 +12,8 @@ async def submit_receipt(payload: ReceiptSubmission, request: Request):
 
     try:
         data = service.create_receipt(payload)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Student not found") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Receipt submission failed") from exc
 
