@@ -20,7 +20,7 @@ class StudentAttendanceRecordInput(BaseModel):
 class StudentAttendanceSubmission(BaseModel):
     class_id: Optional[str] = Field(default=None, pattern=UUID_PATTERN)
     attendance_date: date
-    marked_by: Optional[str] = Field(default="admin", max_length=120)
+    marked_by: Optional[str] = Field(default=None, max_length=120)
     records: List[StudentAttendanceRecordInput] = Field(min_length=1, max_length=500)
 
     @model_validator(mode="after")
@@ -39,7 +39,7 @@ class FacultyAttendanceRecordInput(BaseModel):
 
 class FacultyAttendanceSubmission(BaseModel):
     attendance_date: date
-    marked_by: Optional[str] = Field(default="admin", max_length=120)
+    marked_by: Optional[str] = Field(default=None, max_length=120)
     records: List[FacultyAttendanceRecordInput] = Field(min_length=1, max_length=250)
 
     @model_validator(mode="after")

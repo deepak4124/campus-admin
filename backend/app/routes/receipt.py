@@ -1,13 +1,18 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 
 from app.schemas.receipt import ReceiptSubmission
 from app.services.receipt_service import ReceiptService
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
 
 
 @router.post("")
-async def submit_receipt(payload: ReceiptSubmission, request: Request):
+async def submit_receipt(
+    payload: ReceiptSubmission,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
     service = ReceiptService(request.app.state.supabase_admin)
 
     try:

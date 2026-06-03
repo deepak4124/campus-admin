@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 
 from app.schemas.attendance import (
     FacultyAttendanceSubmission,
     StudentAttendanceSubmission,
 )
 from app.services.attendance_service import AttendanceService
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 
@@ -13,7 +14,9 @@ router = APIRouter(prefix="/attendance", tags=["attendance"])
 async def submit_student_attendance(
     payload: StudentAttendanceSubmission,
     request: Request,
+    current_user: dict = Depends(get_current_user),
 ):
+    payload.marked_by = current_user.get("id")
     service = AttendanceService(request.app.state.supabase_admin)
 
     try:
@@ -29,7 +32,9 @@ async def submit_student_attendance(
 async def submit_faculty_attendance(
     payload: FacultyAttendanceSubmission,
     request: Request,
+    current_user: dict = Depends(get_current_user),
 ):
+    payload.marked_by = current_user.get("id")
     service = AttendanceService(request.app.state.supabase_admin)
 
     try:
