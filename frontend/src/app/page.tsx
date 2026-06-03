@@ -1,8 +1,5 @@
-export default function HomePage() {
-  return (
-    <main className="page">
-      <h1>School Admin Panel</h1>
-      <p>Project scaffold is ready.</p>
-    </main>
-  );
+import { AdminPlaceholderView } from "./components";
+
+export default function AdminHomePage() {
+  return <AdminPlaceholderView actionLabel="Check API Health" description="Use the sidebar to open students, attendance, fee management, and reports." endpoint="/health" title="Dashboard" />;
 }

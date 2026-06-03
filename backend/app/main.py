@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from app.core.supabase import get_supabase_admin_client, get_supabase_public_client
@@ -11,6 +12,17 @@ from app.routes.receipt import router as receipt_router
 load_dotenv()
 
 app = FastAPI(title="School Admin Panel API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
