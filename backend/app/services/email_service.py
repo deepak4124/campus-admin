@@ -59,7 +59,7 @@ class EmailService:
 
         def _send():
             try:
-                with smtplib.SMTP(host, port) as server:
+                with smtplib.SMTP(host, port, timeout=10) as server:
                     server.starttls()
                     server.login(user, password)
                     server.sendmail(from_email, parent_email, msg.as_string())
