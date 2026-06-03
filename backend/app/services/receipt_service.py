@@ -9,6 +9,16 @@ class ReceiptService:
     def __init__(self, supabase_client):
         self.supabase = supabase_client
 
+    def list_receipts(self, student_id: str) -> list:
+        response = (
+            self.supabase.table("receipts")
+            .select("*, receipt_items(*)")
+            .eq("student_id", student_id)
+            .order("payment_date", desc=True)
+            .execute()
+        )
+        return response.data
+
     def create_receipt(self, payload: ReceiptSubmission) -> Dict[str, Any]:
         receipt_number = self._generate_receipt_number()
         receipt_id = None

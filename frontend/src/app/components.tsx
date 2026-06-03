@@ -1,7 +1,9 @@
 "use client";
 
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase";
 import { apiRequest } from "./api";
 
 type IconName =
@@ -52,6 +54,14 @@ type ReceiptResponse = {
   email_status: string;
 };
 
+type ApiReceipt = {
+  receipt_id: string;
+  receipt_number: string;
+  payment_date: string;
+  total_amount: number;
+  receipt_items: { fee_type: string; amount: number }[];
+};
+
 type EmergencyContact = {
   name: string;
   phone: string;
@@ -84,20 +94,72 @@ const PHONE_LOCATIONS = [
 
 const FEE_CATEGORIES = ["Tuition Fee", "Transport Fee", "Annual Sports Fund", "Admission Fee", "Meal Plan", "Books & Materials"];
 
-const paymentRows = [
-  { category: "Tuition Fee", month: "October", amount: "$1,200.00" },
-  { category: "Transport Fee", month: "September", amount: "$150.00" },
-  { category: "Annual Sports Fund", month: "August", amount: "$200.00" },
-];
-
-const navItems: Array<{ label: string; href: string; icon: IconName; active?: boolean }> = [
+const navItems: Array<{ label: string; href: string; icon: IconName; }> = [
   { label: "Dashboard", href: "/", icon: "grid" },
   { label: "Students", href: "/students", icon: "students" },
   { label: "Student Attendance", href: "/student-attendance", icon: "calendar" },
   { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" },
-  { label: "Fee Management", href: "/fee-management", icon: "money", active: true },
+  { label: "Fee Management", href: "/fee-management", icon: "money" },
   { label: "Reports", href: "/reports", icon: "chart" },
 ];
+
+export function DashboardLayout({ children, title }: { children: ReactNode; title?: string }) {
+  const pathname = usePathname();
+  
+  return (
+    <section className="fee-shell" aria-label={title || "Dashboard"}>
+      <aside className="fee-sidebar">
+        <div className="fee-brand">
+          <Icon name="grid" />
+          <h1 className="brand-title">Blooming Daffodils</h1>
+          <p className="brand-subtitle">Administrative Portal</p>
+        </div>
+
+        <nav className="fee-nav" aria-label="Primary navigation">
+          {navItems.map((item) => {
+            const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
+            return (
+              <a className={isActive ? "active" : ""} href={item.href} key={item.label}>
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+              </a>
+            );
+          })}
+        </nav>
+
+        <button className="sidebar-user" type="button" onClick={logoutAdmin}>
+          <Avatar variant="admin" />
+          <div>
+            <strong>Admin</strong>
+            <span>Sign out</span>
+          </div>
+        </button>
+      </aside>
+
+      <div className="fee-main" id="dashboard-main">
+        <header className="fee-topbar">
+          <h2>{title || "Dashboard"}</h2>
+          <div className="top-actions">
+            <label className="global-search">
+              <Icon name="search" />
+              <input aria-label="Global search" placeholder="Global search..." />
+            </label>
+            <button className="icon-button" type="button" aria-label="Notifications" onClick={() => alert("No new notifications.")}>
+              <Icon name="bell" />
+            </button>
+            <button className="icon-button" type="button" aria-label="Settings" onClick={() => alert("Settings will be available after auth is integrated.")}>
+              <Icon name="settings" />
+            </button>
+            <span className="top-divider" />
+            <Avatar />
+          </div>
+        </header>
+
+        <div className="fee-content">{children}</div>
+      </div>
+    </section>
+  );
+}
 
 export function FeeManagementView() {
   const [query, setQuery] = useState("");
@@ -107,6 +169,18 @@ export function FeeManagementView() {
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [feeCategory, setFeeCategory] = useState("Tuition Fee");
+  const [receipts, setReceipts] = useState<ApiReceipt[]>([]);
+
+  useEffect(() => {
+    if (!selectedStudent) {
+      setReceipts([]);
+      return;
+    }
+    
+    apiRequest<ApiReceipt[]>(`/receipts/student/${selectedStudent.student_id}`)
+      .then(setReceipts)
+      .catch((err) => console.error("Failed to load receipts:", err));
+  }, [selectedStudent, paymentStatus]);
 
   async function searchStudents(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -133,7 +207,6 @@ export function FeeManagementView() {
     const formData = new FormData(event.currentTarget);
     const amount = Number(formData.get("amount_paid"));
     const paymentDate = String(formData.get("payment_date") || "");
-    const paymentTime = String(formData.get("payment_time") || "09:00");
 
     if (!selectedStudent) {
       setPaymentStatus("Search and select a student before registering a payment.");
@@ -155,7 +228,7 @@ export function FeeManagementView() {
         method: "POST",
         body: JSON.stringify({
           student_id: selectedStudent.student_id,
-          payment_date: new Date(`${paymentDate}T${paymentTime || "09:00"}`).toISOString(),
+          payment_date: new Date(`${paymentDate}T00:00:00Z`).toISOString(),
           payment_method: paymentMethod,
           total_amount: amount,
           notes: "Created from admin fee management screen",
@@ -178,51 +251,7 @@ export function FeeManagementView() {
   }
 
   return (
-    <section className="fee-shell" aria-label="Fee Management">
-      <aside className="fee-sidebar">
-        <div>
-          <h1 className="brand-title">Clean Paper</h1>
-          <p className="brand-subtitle">Administrative Portal</p>
-        </div>
-
-        <nav className="fee-nav" aria-label="Primary navigation">
-          {navItems.map((item) => (
-            <a className={item.active ? "active" : ""} href={item.href} key={item.label}>
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-            </a>
-          ))}
-        </nav>
-
-        <button className="sidebar-user" type="button" onClick={logoutAdmin}>
-          <Avatar variant="admin" />
-          <div>
-            <strong>Admin</strong>
-            <span>Sign out</span>
-          </div>
-        </button>
-      </aside>
-
-      <div className="fee-main" id="fee-management">
-        <header className="fee-topbar">
-          <h2>Fee Management</h2>
-          <div className="top-actions">
-            <label className="global-search">
-              <Icon name="search" />
-              <input aria-label="Global search" placeholder="Global search..." />
-            </label>
-            <button className="icon-button" type="button" aria-label="Notifications" onClick={() => setPaymentStatus("No new notifications.")}>
-              <Icon name="bell" />
-            </button>
-            <button className="icon-button" type="button" aria-label="Settings" onClick={() => setPaymentStatus("Settings will be available after auth is integrated.")}>
-              <Icon name="settings" />
-            </button>
-            <span className="top-divider" />
-            <Avatar />
-          </div>
-        </header>
-
-        <div className="fee-content">
+    <DashboardLayout title="Fee Management">
           <section className="student-lookup" aria-label="Find student">
             <form onSubmit={searchStudents}>
               <label className="section-label" htmlFor="student-search">
@@ -290,11 +319,11 @@ export function FeeManagementView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paymentRows.map((row) => (
-                    <tr key={row.category}>
-                      <td>{row.category}</td>
-                      <td>{row.month}</td>
-                      <td className="amount">{row.amount}</td>
+                  {receipts.map((receipt) => (
+                    <tr key={receipt.receipt_id}>
+                      <td>{receipt.receipt_items?.[0]?.fee_type ?? "Fee"}</td>
+                      <td>{new Date(receipt.payment_date).toLocaleDateString()}</td>
+                      <td className="amount">${receipt.total_amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -319,7 +348,6 @@ export function FeeManagementView() {
                   onChange={setPaymentMethod}
                 />
               </div>
-              <Field label="Payment Time" name="payment_time" type="time" />
               <Field label="Amount Paid" name="amount_paid" placeholder="0.00" type="number" />
               <div className="payment-actions">
                 <button className="primary-button" type="submit">
@@ -333,9 +361,7 @@ export function FeeManagementView() {
               {paymentStatus ? <p className="form-status">{paymentStatus}</p> : null}
             </form>
           </section>
-        </div>
-      </div>
-    </section>
+    </DashboardLayout>
   );
 }
 
@@ -365,7 +391,7 @@ export function AdmissionFormView() {
       contacts,
       siblings,
     };
-    localStorage.setItem("clean-paper-admission-draft", JSON.stringify(draft));
+    localStorage.setItem("blooming-daffodils-admission-draft", JSON.stringify(draft));
     setStatus("Draft saved in this browser.");
   }
 
@@ -442,7 +468,7 @@ export function AdmissionFormView() {
           references: referenceName || referencePhone ? [compactObject({ reference_through: referenceName, reference_phone: referencePhone })] : undefined,
         }),
       });
-      localStorage.removeItem("clean-paper-admission-draft");
+      localStorage.removeItem("blooming-daffodils-admission-draft");
       setStatus(`Application ${data.status}. Admission number: ${data.admission_no ?? data.application_id}`);
       form.reset();
     } catch (error) {
@@ -586,16 +612,15 @@ export function AdminPlaceholderView({ title, description, actionLabel, endpoint
   }
 
   return (
-    <main className="admin-placeholder">
-      <section>
-        <h1>{title}</h1>
+    <DashboardLayout title={title}>
+      <section className="admin-placeholder" style={{ padding: 0 }}>
         <p>{description}</p>
-        <button className="primary-button" type="button" onClick={runCheck}>
+        <button className="primary-button" type="button" onClick={runCheck} style={{ marginTop: "1rem" }}>
           {actionLabel}
         </button>
         {status ? <p className="form-status">{status}</p> : null}
       </section>
-    </main>
+    </DashboardLayout>
   );
 }
 
@@ -604,9 +629,12 @@ function AdmissionHeader() {
     <header className="admission-header">
       <div className="mobile-brand">
         <Icon name="menu" />
-        <strong>Clean Paper</strong>
+        <strong>Blooming Daffodils</strong>
       </div>
-      <strong className="desktop-brand">Clean Paper</strong>
+      <strong className="desktop-brand">
+        <img src="/logo.jpg" alt="Blooming Daffodils Logo" className="school-logo" />
+        Blooming Daffodils
+      </strong>
       <div className="admission-search">
         <Icon name="search" />
         <input placeholder="Search application..." aria-label="Search application" />
@@ -793,9 +821,11 @@ function compactObject<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, fieldValue]) => fieldValue !== null && fieldValue !== undefined && fieldValue !== "")) as Partial<T>;
 }
 
-function logoutAdmin() {
-  document.cookie = "admin_session=; path=/; max-age=0; SameSite=Lax";
-  window.location.href = "/admin/login";
+
+async function logoutAdmin() {
+  const supabase = createClient();
+  await supabase.auth.signOut();
+  window.location.href = "/login";
 }
 
 const iconPaths: Record<IconName, ReactNode> = {

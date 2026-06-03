@@ -579,14 +579,23 @@ tr:last-child td {
   border-bottom: 1px solid var(--border-soft);
   display: flex;
   gap: 16px;
-  height: 44px;
-  padding: 0 18px;
+  height: 64px;
+  padding: 0 24px;
 }
 
 .desktop-brand {
+  align-items: center;
+  display: flex;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 17px;
+  font-size: 22px;
+  gap: 12px;
   margin-right: auto;
+}
+
+.school-logo {
+  height: 40px;
+  width: auto;
+  border-radius: 4px;
 }
 
 .mobile-brand {
@@ -864,11 +873,10 @@ tr:last-child td {
 }
 
 .check-row input {
-  appearance: none;
-  border: 1px solid var(--border);
   height: 16px;
   margin: 0;
   width: 16px;
+  accent-color: var(--accent);
 }
 
 .check-row span {
