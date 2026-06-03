@@ -1191,10 +1191,6 @@ tr:last-child td {
     width: 2px;
   }
 
-  .desktop-address {
-    display: none;
-  }
-
   .phone-row > div {
     grid-template-columns: 52px 1fr;
   }
@@ -1228,10 +1224,6 @@ tr:last-child td {
     font-size: 10px;
     min-height: 30px;
     width: 100%;
-  }
-
-  .contact-list + .add-button {
-    display: none;
   }
 
   .mobile-only {

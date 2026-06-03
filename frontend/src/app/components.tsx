@@ -375,7 +375,7 @@ export function FeeManagementView() {
 export function AdmissionFormView() {
   const [gender, setGender] = useState("Male");
   const [contacts, setContacts] = useState<EmergencyContact[]>([
-    { name: "Grandparent", phone: "9876543210", relation: "Grandparent" },
+    { name: "", phone: "", relation: "" },
     { name: "", phone: "", relation: "" },
   ]);
   const [siblings, setSiblings] = useState<Sibling[]>([{ fullName: "", dob: "", school: "" }]);
@@ -588,7 +588,7 @@ export function AdmissionFormView() {
 
       <div className="form-title">
         <h2>Student Admission Form</h2>
-        <p>Academic Year 2024-2025</p>
+        <p>Academic Year 2025-2026</p>
       </div>
 
       <form 
@@ -689,7 +689,7 @@ export function AdmissionFormView() {
             <ParentBlock title="Father's Details" name="Father's full name" prefix="father" showEmail={true} />
             <ParentBlock title="Mother's Details" name="Mother's full name" prefix="mother" />
           </div>
-          <Field className="full-row desktop-address" label="Residential Address" name="address" placeholder="Street name, City, State, ZIP code" type="textarea" required={true} />
+          <Field className="full-row address-field" label="Residential Address" name="address" placeholder="Street name, City, State, ZIP code" type="textarea" required={true} />
         </FormSection>
 
         <FormSection icon="id" number="3." title="Emergency Contacts">
@@ -709,7 +709,7 @@ export function AdmissionFormView() {
               <SiblingFields index={index} key={index} sibling={sibling} onChange={updateSibling} />
             ))}
           </div>
-          <button className="add-button mobile-only" type="button" onClick={() => setSiblings((current) => [...current, { fullName: "", dob: "", school: "" }])}>
+          <button className="add-button" type="button" onClick={() => setSiblings((current) => [...current, { fullName: "", dob: "", school: "" }])}>
             + Add Another Sibling
           </button>
         </FormSection>
