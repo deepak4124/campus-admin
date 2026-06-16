@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
 
 from app.schemas.application import UUID_PATTERN
-from app.schemas.directory import FacultyCreate, FacultyUpdate
+from app.schemas.directory import FacultyCreate, FacultyUpdate, StudentUpdate
 from app.services.directory_service import DirectoryService
 from app.core.auth import get_current_user
 
@@ -57,6 +57,25 @@ async def get_student(
         raise HTTPException(status_code=404, detail="Student not found") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Student lookup failed") from exc
+
+
+@router.put("/students/{student_id}")
+async def update_student(
+    student_id: str,
+    payload: StudentUpdate,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    if not _matches_uuid(student_id):
+        raise HTTPException(status_code=422, detail="Invalid student_id")
+
+    service = DirectoryService(request.app.state.supabase_admin)
+    try:
+        return service.update_student(student_id, payload.model_dump(exclude_unset=True))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Student not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Student update failed") from exc
 
 
 @router.get("/classes")

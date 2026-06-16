@@ -203,7 +203,6 @@ class DirectoryService:
             .update(data)
         )
         return self._first_row(response.data)
-
     def delete_faculty(self, faculty_id: str) -> None:
         # Cascade-delete related attendance logs first
         self.supabase.table("faculty_attendance").eq("faculty_id", faculty_id).delete()
@@ -216,3 +215,10 @@ class DirectoryService:
         if not response.data:
             raise LookupError("Faculty member not found")
 
+    def update_student(self, student_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        response = (
+            self.supabase.table("students")
+            .eq("student_id", student_id)
+            .update(data)
+        )
+        return self._first_row(response.data)

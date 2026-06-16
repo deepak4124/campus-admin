@@ -26,3 +26,15 @@ class FacultyUpdate(BaseModel):
     email: Optional[str] = Field(default=None, max_length=100)
     joining_date: Optional[date] = Field(default=None)
     status: Optional[str] = Field(default=None, pattern=r"^(active|inactive)$")
+
+
+class StudentUpdate(BaseModel):
+    first_name: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    last_name: Optional[str] = Field(default=None, max_length=50)
+    class_id: Optional[str] = Field(default=None, pattern=UUID_PATTERN)
+    parent_name: Optional[str] = Field(default=None, max_length=100)
+    parent_phone: Optional[str] = Field(default=None, max_length=20)
+    parent_email: Optional[str] = Field(default=None, max_length=100)
+    status: Optional[str] = Field(default=None, pattern=r"^(active|inactive)$")
+    photo_url: Optional[str] = Field(default=None)
+

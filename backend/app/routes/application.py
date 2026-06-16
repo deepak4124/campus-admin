@@ -8,13 +8,17 @@ from app.services.application_service import ApplicationService
 router = APIRouter(prefix="/applications", tags=["applications"])
 logger = logging.getLogger(__name__)
 
-
 @router.post("")
 async def submit_application(payload: ApplicationSubmission, request: Request):
     service = ApplicationService(request.app.state.supabase_admin)
 
     try:
         data = service.create_application(payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
     except Exception as exc:
         logger.exception("Application submission failed")
         raise HTTPException(

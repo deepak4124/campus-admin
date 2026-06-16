@@ -11,11 +11,54 @@ class ApplicationService:
         student_id = None
         student_data = payload.student.model_dump(exclude_none=True)
 
+        first_name = student_data.get("first_name")
+        last_name = student_data.get("last_name")
+        dob = student_data.get("dob")
+        parent_email = student_data.get("parent_email")
+        parent_phone = student_data.get("parent_phone")
+
+        if first_name:
+            response = (
+                self.supabase.table("students")
+                .select("student_id,first_name,last_name,dob,parent_email,parent_phone")
+                .ilike("first_name", first_name.strip())
+                .execute()
+            )
+            existing_students = response.data or []
+            for s in existing_students:
+                if not s.get("first_name") or s["first_name"].strip().lower() != first_name.strip().lower():
+                    continue
+
+                s_last = (s.get("last_name") or "").strip().lower()
+                payload_last = (last_name or "").strip().lower()
+                if s_last != payload_last:
+                    continue
+
+                dob_match = False
+                if dob and s.get("dob"):
+                    if str(dob) == str(s["dob"]):
+                        dob_match = True
+
+                email_match = False
+                if parent_email and s.get("parent_email"):
+                    if parent_email.strip().lower() == s["parent_email"].strip().lower():
+                        email_match = True
+
+                phone_match = False
+                if parent_phone and s.get("parent_phone"):
+                    if parent_phone.strip() == s["parent_phone"].strip():
+                        phone_match = True
+
+                if dob_match or email_match or phone_match:
+                    raise ValueError(
+                        "Duplicate submission detected. A student with the same name and "
+                        "Date of Birth / Parent Contact details is already registered."
+                    )
+
         try:
             student_response = self.supabase.table("students").insert(student_data)
             student = self._first_row(student_response)
             student_id = student["student_id"]
-
             if payload.admission:
                 admission_data = payload.admission.model_dump(exclude_none=True)
                 admission_data["student_id"] = student_id

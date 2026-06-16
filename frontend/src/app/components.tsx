@@ -2329,3 +2329,240 @@ export function FacultyManagementView() {
     </DashboardLayout>
   );
 }
+
+
+export function StudentManagementView() {
+  const [students, setStudents] = useState<ApiStudent[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive">("active");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  // Detailed Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<ApiStudent | null>(null);
+
+  const loadStudents = useCallback(() => {
+    setLoading(true);
+    setStatus("");
+    apiRequest<{ students: ApiStudent[] }>(`/students?status=${statusFilter}`)
+      .then((res) => {
+        setStudents(res.students || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load students directory:", err);
+        setStatus("Failed to load students directory.");
+      })
+      .finally(() => setLoading(false));
+  }, [statusFilter]);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
+
+  const filteredStudents = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return students;
+    return students.filter((s) => {
+      const adNo = (s.admission_no || "").toLowerCase();
+      const name = `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase();
+      const className = (s.class_name || "").toLowerCase();
+      const pName = (s.parent_name || "").toLowerCase();
+      const pPhone = (s.parent_phone || "").toLowerCase();
+      const pEmail = (s.parent_email || "").toLowerCase();
+      return (
+        adNo.includes(query) ||
+        name.includes(query) ||
+        className.includes(query) ||
+        pName.includes(query) ||
+        pPhone.includes(query) ||
+        pEmail.includes(query)
+      );
+    });
+  }, [students, searchQuery]);
+
+  async function handleToggleStatus(student: ApiStudent) {
+    const newStatus = student.status === "active" ? "inactive" : "active";
+    try {
+      await apiRequest(`/students/${student.student_id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      // If selected student is open in modal, update status inline
+      if (selectedStudent && selectedStudent.student_id === student.student_id) {
+        setSelectedStudent((prev) => prev ? { ...prev, status: newStatus } : null);
+      }
+      loadStudents();
+    } catch (err) {
+      console.error("Failed to toggle status:", err);
+      alert(err instanceof Error ? err.message : "Failed to toggle status.");
+    }
+  }
+
+  return (
+    <DashboardLayout title="Student Directory">
+      <div className="attendance-page-content">
+        <div className="audit-header-section" style={{ marginBottom: "20px" }}>
+          <h3>Manage Student Directory</h3>
+          <div className="audit-filters-container">
+            <div className="directory-tabs">
+              <button
+                className={statusFilter === "active" ? "tab-btn active" : "tab-btn"}
+                type="button"
+                onClick={() => setStatusFilter("active")}
+              >
+                Active Students
+              </button>
+              <button
+                className={statusFilter === "inactive" ? "tab-btn active" : "tab-btn"}
+                type="button"
+                onClick={() => setStatusFilter("inactive")}
+              >
+                Inactive / Archived
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Search students..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="audit-search-input"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="status-message">Loading student directory...</p>
+        ) : filteredStudents.length > 0 ? (
+          <div className="student-grid-directory">
+            {filteredStudents.map((student) => {
+              const name = [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student";
+              return (
+                <div key={student.student_id} className="student-card-directory">
+                  <div className="student-card-header">
+                    <span className="student-card-admission">No: {student.admission_no || "N/A"}</span>
+                    <span className={`status-pill ${student.status === "active" ? "present" : "absent"}`}>
+                      {student.status === "active" ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  
+                  <div className="student-card-avatar-wrapper">
+                    <Avatar variant="student" src={student.photo_url} />
+                  </div>
+
+                  <div className="student-card-info">
+                    <h4 className="student-card-name">{name}</h4>
+                    <span className="student-card-class">{student.class_name || "Unassigned Class"}</span>
+                  </div>
+
+                  <div className="student-card-contact">
+                    <div className="contact-item">
+                      <span className="contact-icon" aria-hidden="true">
+                        <Icon name="user" />
+                      </span>
+                      <span>{student.parent_name || "No Parent Info"}</span>
+                    </div>
+                    {student.parent_phone && (
+                      <div className="contact-item">
+                        <span className="contact-icon" aria-hidden="true">
+                          <Icon name="phone" />
+                        </span>
+                        <span>{student.parent_phone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="student-card-actions">
+                    <button
+                      className="secondary-button small"
+                      type="button"
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      View Details
+                    </button>
+                    <button
+                      className={`row-submit-button small ${student.status === "active" ? "danger-btn" : ""}`}
+                      type="button"
+                      onClick={() => handleToggleStatus(student)}
+                      style={student.status === "active" ? { background: "#fee2e2", color: "#b91c1c" } : { background: "#dcfce7", color: "#15803d" }}
+                    >
+                      {student.status === "active" ? "Deactivate" : "Activate"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="status-message">No students found for this criteria.</p>
+        )}
+
+        {status && <p className="status-message">{status}</p>}
+      </div>
+
+      {isModalOpen && selectedStudent && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Student Profile Details</h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setIsModalOpen(false)}
+                aria-label="Close modal"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-profile-section">
+                <Avatar variant="student" src={selectedStudent.photo_url} />
+                <h4 className="modal-student-name">
+                  {[selectedStudent.first_name, selectedStudent.last_name].filter(Boolean).join(" ") || "Student"}
+                </h4>
+                <span className="modal-student-admission">Admission No: {selectedStudent.admission_no || "N/A"}</span>
+              </div>
+              <div className="modal-details-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Class</span>
+                  <span className="detail-value">{selectedStudent.class_name || "Unassigned"}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Parent / Guardian Name</span>
+                  <span className="detail-value">{selectedStudent.parent_name || "N/A"}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Parent Phone</span>
+                  <span className="detail-value">{selectedStudent.parent_phone || "N/A"}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Parent Email</span>
+                  <span className="detail-value">{selectedStudent.parent_email || "N/A"}</span>
+                </div>
+                <div className="detail-item full-width status-toggle-item">
+                  <span className="detail-label">Status Toggle</span>
+                  <div className="status-toggle-wrapper">
+                    <span className={`status-pill ${selectedStudent.status === "active" ? "present" : "absent"}`}>
+                      {selectedStudent.status === "active" ? "Active Status" : "Inactive / Archived"}
+                    </span>
+                    <button
+                      className="primary-button small-btn"
+                      type="button"
+                      onClick={() => handleToggleStatus(selectedStudent)}
+                      style={selectedStudent.status === "active" ? { background: "#b91c1c", borderColor: "#b91c1c" } : { background: "#15803d", borderColor: "#15803d" }}
+                    >
+                      {selectedStudent.status === "active" ? "Mark Inactive" : "Mark Active"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
+  );
+}
