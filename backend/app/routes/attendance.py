@@ -44,3 +44,19 @@ async def submit_faculty_attendance(
             status_code=502,
             detail="Faculty attendance save failed",
         ) from exc
+
+
+@router.get("/faculty")
+async def list_faculty_attendance(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    service = AttendanceService(request.app.state.supabase_admin)
+    try:
+        return service.list_faculty_attendance()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Faculty attendance list failed",
+        ) from exc
+

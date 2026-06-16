@@ -57,6 +57,21 @@ class DirectoryService:
         self._attach_class_names([student])
         return {"student": student}
 
+    def list_students(
+        self,
+        status: Optional[str] = "active",
+    ) -> Dict[str, Any]:
+        table = (
+            self.supabase.table("students")
+            .select(self.STUDENT_SELECT)
+            .order("first_name")
+        )
+        if status:
+            table.eq("status", status)
+
+        students = self._attach_class_names(table.execute().data or [])
+        return {"students": students}
+
     def list_classes(self) -> Dict[str, Any]:
         response = (
             self.supabase.table("classes")
@@ -164,3 +179,40 @@ class DirectoryService:
             student["class_name"] = class_names.get(student.get("class_id"))
 
         return students
+
+    def create_faculty(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        from datetime import date
+        if isinstance(data.get("joining_date"), date):
+            data["joining_date"] = data["joining_date"].isoformat()
+        
+        response = (
+            self.supabase.table("faculty")
+            .insert(data)
+            .execute()
+        )
+        return self._first_row(response.data)
+
+    def update_faculty(self, faculty_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        from datetime import date
+        if isinstance(data.get("joining_date"), date):
+            data["joining_date"] = data["joining_date"].isoformat()
+        
+        response = (
+            self.supabase.table("faculty")
+            .eq("faculty_id", faculty_id)
+            .update(data)
+        )
+        return self._first_row(response.data)
+
+    def delete_faculty(self, faculty_id: str) -> None:
+        # Cascade-delete related attendance logs first
+        self.supabase.table("faculty_attendance").eq("faculty_id", faculty_id).delete()
+        
+        response = (
+            self.supabase.table("faculty")
+            .eq("faculty_id", faculty_id)
+            .delete()
+        )
+        if not response.data:
+            raise LookupError("Faculty member not found")
+

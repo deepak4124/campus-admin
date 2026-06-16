@@ -92,6 +92,15 @@ class AttendanceService:
             "records": self._summarize_faculty_rows(saved_rows),
         }
 
+    def list_faculty_attendance(self) -> List[Dict[str, Any]]:
+        response = (
+            self.supabase.table("faculty_attendance")
+            .select("*, faculty(first_name, last_name, employee_code)")
+            .order("attendance_date", desc=True)
+            .execute()
+        )
+        return response.data or []
+
     def _save_attendance_row(
         self,
         table: str,

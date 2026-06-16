@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
 
 from app.schemas.application import UUID_PATTERN
+from app.schemas.directory import FacultyCreate, FacultyUpdate
 from app.services.directory_service import DirectoryService
 from app.core.auth import get_current_user
 
@@ -23,6 +24,20 @@ async def search_students(
         return service.search_students(query=q, status=status, limit=limit)
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Student search failed") from exc
+
+
+@router.get("/students")
+async def list_students(
+    request: Request,
+    status: Optional[str] = Query(default="active", pattern=r"^(active|inactive)$"),
+    current_user: dict = Depends(get_current_user),
+):
+    service = DirectoryService(request.app.state.supabase_admin)
+
+    try:
+        return service.list_students(status=status)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Student list failed") from exc
 
 
 @router.get("/students/{student_id}")
@@ -104,6 +119,57 @@ async def search_faculty(
         return service.search_faculty(query=q, status=status, limit=limit)
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Faculty search failed") from exc
+
+
+@router.post("/faculty")
+async def create_faculty(
+    payload: FacultyCreate,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    service = DirectoryService(request.app.state.supabase_admin)
+    try:
+        return service.create_faculty(payload.model_dump())
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Faculty creation failed") from exc
+
+
+@router.put("/faculty/{faculty_id}")
+async def update_faculty(
+    faculty_id: str,
+    payload: FacultyUpdate,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    if not _matches_uuid(faculty_id):
+        raise HTTPException(status_code=422, detail="Invalid faculty_id")
+    
+    service = DirectoryService(request.app.state.supabase_admin)
+    try:
+        return service.update_faculty(faculty_id, payload.model_dump(exclude_unset=True))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Faculty not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Faculty update failed") from exc
+
+
+@router.delete("/faculty/{faculty_id}")
+async def delete_faculty(
+    faculty_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    if not _matches_uuid(faculty_id):
+        raise HTTPException(status_code=422, detail="Invalid faculty_id")
+    
+    service = DirectoryService(request.app.state.supabase_admin)
+    try:
+        service.delete_faculty(faculty_id)
+        return {"success": True}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Faculty not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Faculty deletion failed") from exc
 
 
 def _matches_uuid(value: str) -> bool:

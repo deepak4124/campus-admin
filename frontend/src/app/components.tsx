@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { apiRequest } from "./api";
@@ -11,11 +11,14 @@ type IconName =
   | "calendar"
   | "camera"
   | "chart"
+  | "clock"
   | "grid"
   | "id"
+  | "mail"
   | "menu"
   | "money"
   | "parents"
+  | "phone"
   | "receipt"
   | "reference"
   | "search"
@@ -98,13 +101,15 @@ const FEE_CATEGORIES = ["Tuition Fee", "Academic Fee", "Miscellaneous"];
 const navItems: Array<{ label: string; href: string; icon: IconName; }> = [
   { label: "Dashboard", href: "/dashboard", icon: "grid" },
   { label: "Students", href: "/students", icon: "students" },
+  { label: "Faculty", href: "/faculty", icon: "user" },
   { label: "Student Attendance", href: "/student-attendance", icon: "calendar" },
   { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" },
+  { label: "Check-in Audit", href: "/check-in-audit", icon: "chart" },
   { label: "Fee Management", href: "/fee-management", icon: "money" },
   { label: "Reports", href: "/reports", icon: "chart" },
 ];
 
-export function DashboardLayout({ children, title }: { children: ReactNode; title?: string }) {
+export function DashboardLayout({ children, title, className = "" }: { children: ReactNode; title?: string; className?: string }) {
   const pathname = usePathname();
   
   return (
@@ -142,7 +147,7 @@ export function DashboardLayout({ children, title }: { children: ReactNode; titl
           <h2>{title || "Dashboard"}</h2>
         </header>
 
-        <div className="fee-content">{children}</div>
+        <div className={`fee-content ${className}`}>{children}</div>
       </div>
     </section>
   );
@@ -251,7 +256,7 @@ export function FeeManagementView() {
   }
 
   return (
-    <DashboardLayout title="Fee Management">
+    <DashboardLayout title="Fee Management" className="fee-grid-layout">
           <section className="student-lookup" aria-label="Find student">
             <form onSubmit={searchStudents}>
               <label className="section-label" htmlFor="student-search">
@@ -1117,6 +1122,12 @@ const iconPaths: Record<IconName, ReactNode> = {
       <path d="M8 16v-5M12 16V8M16 16v-8" />
     </>
   ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </>
+  ),
   grid: (
     <>
       <path d="M4 4h7v7H4zM15 4h5v7h-5zM4 15h7v5H4zM15 15h5v5h-5z" />
@@ -1126,6 +1137,12 @@ const iconPaths: Record<IconName, ReactNode> = {
     <>
       <rect height="16" rx="2" width="18" x="3" y="4" />
       <path d="M8 9h3M8 13h8M8 17h8M15 8v3h3" />
+    </>
+  ),
+  mail: (
+    <>
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
     </>
   ),
   menu: (
@@ -1144,6 +1161,11 @@ const iconPaths: Record<IconName, ReactNode> = {
     <>
       <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
       <path d="M3 20a5 5 0 0 1 10 0M11 20a5 5 0 0 1 10 0" />
+    </>
+  ),
+  phone: (
+    <>
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </>
   ),
   receipt: (
@@ -1188,3 +1210,1122 @@ const iconPaths: Record<IconName, ReactNode> = {
     </>
   ),
 };
+
+export function StudentAttendanceView() {
+  const [students, setStudents] = useState<ApiStudent[]>([]);
+  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [records, setRecords] = useState<Record<string, { status: "present" | "absent"; remarks: string }>>({});
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [status, setStatus] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setLoadingStudents(true);
+    setStatus("");
+    apiRequest<{ students: ApiStudent[] }>("/students")
+      .then((res) => {
+        setStudents(res.students);
+        const initialRecords: Record<string, { status: "present" | "absent"; remarks: string }> = {};
+        res.students.forEach((student) => {
+          initialRecords[student.student_id] = { status: "present", remarks: "" };
+        });
+        setRecords(initialRecords);
+      })
+      .catch((err) => {
+        console.error("Failed to load students:", err);
+        setStatus("Failed to load student list.");
+      })
+      .finally(() => setLoadingStudents(false));
+  }, []);
+
+  function handleStatusChange(studentId: string, newStatus: "present" | "absent") {
+    setRecords((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        status: newStatus,
+      },
+    }));
+  }
+
+  function handleRemarksChange(studentId: string, newRemarks: string) {
+    setRecords((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        remarks: newRemarks,
+      },
+    }));
+  }
+
+  function markAll(status: "present" | "absent") {
+    setRecords((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((id) => {
+        updated[id] = { ...updated[id], status };
+      });
+      return updated;
+    });
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (students.length === 0) {
+      setStatus("No students to mark attendance.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus("Submitting attendance...");
+
+    const submissionRecords = students.map((student) => ({
+      student_id: student.student_id,
+      status: records[student.student_id]?.status || "present",
+      remarks: records[student.student_id]?.remarks || null,
+    }));
+
+    try {
+      await apiRequest("/attendance/students", {
+        method: "POST",
+        body: JSON.stringify({
+          class_id: null,
+          attendance_date: attendanceDate,
+          records: submissionRecords,
+        }),
+      });
+      setStatus("Attendance submitted successfully!");
+    } catch (err) {
+      console.error(err);
+      setStatus(err instanceof Error ? err.message : "Failed to submit attendance.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <DashboardLayout title="Student Attendance">
+      <div className="attendance-page-content">
+        <form onSubmit={handleSubmit}>
+          <div className="attendance-filters" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="form-field">
+              <span className="field-label">Attendance Date</span>
+              <input
+                type="date"
+                value={attendanceDate}
+                onChange={(e) => setAttendanceDate(e.target.value)}
+                required={true}
+              />
+            </div>
+          </div>
+
+          {loadingStudents ? (
+            <p className="status-message">Loading students...</p>
+          ) : students.length > 0 ? (
+            <>
+              <div className="attendance-bulk-actions">
+                <button type="button" className="secondary-button" onClick={() => markAll("present")}>
+                  Mark All Present
+                </button>
+                <button type="button" className="secondary-button" onClick={() => markAll("absent")}>
+                  Mark All Absent
+                </button>
+              </div>
+
+              <div className="attendance-table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Roll Number</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map((student) => (
+                      <tr key={student.student_id}>
+                        <td>
+                          <div className="student-profile-cell">
+                            <Avatar variant="student" src={student.photo_url} />
+                            <span>{studentName(student)}</span>
+                          </div>
+                        </td>
+                        <td>{student.admission_no || "N/A"}</td>
+                        <td>
+                          <div className="segmented-control attendance-status-segmented" role="group" aria-label="Attendance Status">
+                            <button
+                              type="button"
+                              className={records[student.student_id]?.status === "present" ? "selected present-active" : ""}
+                              onClick={() => handleStatusChange(student.student_id, "present")}
+                            >
+                              Present
+                            </button>
+                            <button
+                              type="button"
+                              className={records[student.student_id]?.status === "absent" ? "selected absent-active" : ""}
+                              onClick={() => handleStatusChange(student.student_id, "absent")}
+                            >
+                              Absent
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            placeholder="Remarks (e.g. late, sick)"
+                            value={records[student.student_id]?.remarks || ""}
+                            onChange={(e) => handleRemarksChange(student.student_id, e.target.value)}
+                            className="table-remarks-input"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="attendance-submit-section">
+                {status ? <p className="form-status" style={{ flex: 1 }}>{status}</p> : null}
+                <button className="primary-button" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Submitting..." : "Submit Attendance"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="status-message">No active students found.</p>
+          )}
+
+          {status && students.length === 0 ? <p className="status-message">{status}</p> : null}
+        </form>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+type ApiFaculty = {
+  faculty_id: string;
+  employee_code?: string;
+  first_name?: string;
+  last_name?: string;
+  designation?: string;
+  phone?: string;
+  email?: string;
+  status?: string;
+};
+
+export function FacultyAttendanceView() {
+  const [faculty, setFaculty] = useState<ApiFaculty[]>([]);
+  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [records, setRecords] = useState<Record<string, { status: "present" | "absent"; checkInTime: string; notes: string }>>({});
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rowSubmitting, setRowSubmitting] = useState<Record<string, boolean>>({});
+  const [rowStatus, setRowStatus] = useState<Record<string, string>>({});
+
+  const getTodayTimeStr = () => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    apiRequest<{ results: ApiFaculty[] }>("/faculty?limit=200")
+      .then((res) => {
+        setFaculty(res.results);
+        const initialTime = getTodayTimeStr();
+        const initialRecords: Record<string, { status: "present" | "absent"; checkInTime: string; notes: string }> = {};
+        res.results.forEach((member) => {
+          initialRecords[member.faculty_id] = { status: "present", checkInTime: initialTime, notes: "" };
+        });
+        setRecords(initialRecords);
+      })
+      .catch((err) => {
+        console.error("Failed to load faculty:", err);
+        setStatus("Failed to load faculty list.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  function handleStatusChange(facultyId: string, newStatus: "present" | "absent") {
+    setRecords((prev) => ({
+      ...prev,
+      [facultyId]: {
+        ...prev[facultyId],
+        status: newStatus,
+      },
+    }));
+  }
+
+  function handleCheckInTimeChange(facultyId: string, newTime: string) {
+    setRecords((prev) => ({
+      ...prev,
+      [facultyId]: {
+        ...prev[facultyId],
+        checkInTime: newTime,
+      },
+    }));
+  }
+
+  function handleNotesChange(facultyId: string, newNotes: string) {
+    setRecords((prev) => ({
+      ...prev,
+      [facultyId]: {
+        ...prev[facultyId],
+        notes: newNotes,
+      },
+    }));
+  }
+
+  function markAll(status: "present" | "absent") {
+    const initialTime = getTodayTimeStr();
+    setRecords((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((id) => {
+        updated[id] = {
+          ...updated[id],
+          status,
+          checkInTime: updated[id]?.checkInTime || initialTime,
+        };
+      });
+      return updated;
+    });
+  }
+
+  async function handleIndividualSubmit(memberId: string) {
+    setRowSubmitting((prev) => ({ ...prev, [memberId]: true }));
+    setRowStatus((prev) => ({ ...prev, [memberId]: "" }));
+
+    const record = records[memberId] || { status: "present", checkInTime: "09:00", notes: "" };
+    const remarksJson = JSON.stringify({
+      check_in_time: record.status === "present" ? record.checkInTime : null,
+      notes: record.notes || "",
+    });
+
+    const submissionRecord = {
+      faculty_id: memberId,
+      status: record.status,
+      remarks: remarksJson,
+    };
+
+    try {
+      await apiRequest("/attendance/faculty", {
+        method: "POST",
+        body: JSON.stringify({
+          attendance_date: attendanceDate,
+          records: [submissionRecord],
+        }),
+      });
+      setRowStatus((prev) => ({ ...prev, [memberId]: "Saved ✓" }));
+      setTimeout(() => {
+        setRowStatus((prev) => ({ ...prev, [memberId]: "" }));
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      setRowStatus((prev) => ({ ...prev, [memberId]: "Failed" }));
+    } finally {
+      setRowSubmitting((prev) => ({ ...prev, [memberId]: false }));
+    }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (faculty.length === 0) {
+      setStatus("No faculty members to mark attendance.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus("Submitting attendance...");
+
+    const submissionRecords = faculty.map((member) => {
+      const record = records[member.faculty_id] || { status: "present", checkInTime: "09:00", notes: "" };
+      const remarksJson = JSON.stringify({
+        check_in_time: record.status === "present" ? record.checkInTime : null,
+        notes: record.notes || "",
+      });
+
+      return {
+        faculty_id: member.faculty_id,
+        status: record.status,
+        remarks: remarksJson,
+      };
+    });
+
+    try {
+      await apiRequest("/attendance/faculty", {
+        method: "POST",
+        body: JSON.stringify({
+          attendance_date: attendanceDate,
+          records: submissionRecords,
+        }),
+      });
+      setStatus("Attendance submitted successfully!");
+    } catch (err) {
+      console.error(err);
+      setStatus(err instanceof Error ? err.message : "Failed to submit attendance.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function facultyName(member: ApiFaculty) {
+    return [member.first_name, member.last_name].filter(Boolean).join(" ") || "Faculty Member";
+  }
+
+  return (
+    <DashboardLayout title="Faculty Attendance">
+      <div className="attendance-page-content">
+        <form onSubmit={handleSubmit}>
+          <div className="attendance-filters" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="form-field">
+              <span className="field-label">Attendance Date</span>
+              <input
+                type="date"
+                value={attendanceDate}
+                onChange={(e) => setAttendanceDate(e.target.value)}
+                required={true}
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="status-message">Loading faculty directory...</p>
+          ) : faculty.length > 0 ? (
+            <>
+              <div className="attendance-bulk-actions">
+                <button type="button" className="secondary-button" onClick={() => markAll("present")}>
+                  Mark All Checked In
+                </button>
+                <button type="button" className="secondary-button" onClick={() => markAll("absent")}>
+                  Mark All Absent
+                </button>
+              </div>
+
+              <div className="attendance-table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Faculty Member</th>
+                      <th>Employee Code</th>
+                      <th>Designation</th>
+                      <th>Status</th>
+                      <th>Check-in Time</th>
+                      <th>Notes</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {faculty.map((member) => {
+                      const record = records[member.faculty_id] || { status: "present", checkInTime: "09:00", notes: "" };
+                      return (
+                        <tr key={member.faculty_id}>
+                          <td>
+                            <div className="faculty-profile-cell">
+                              <Avatar variant="profile" />
+                              <span>{facultyName(member)}</span>
+                            </div>
+                          </td>
+                          <td>{member.employee_code || "N/A"}</td>
+                          <td>{member.designation || "Staff"}</td>
+                          <td>
+                            <div className="segmented-control attendance-status-segmented" role="group" aria-label="Attendance Status">
+                              <button
+                                type="button"
+                                className={record.status === "present" ? "selected present-active" : ""}
+                                onClick={() => handleStatusChange(member.faculty_id, "present")}
+                              >
+                                Checked In
+                              </button>
+                              <button
+                                type="button"
+                                className={record.status === "absent" ? "selected absent-active" : ""}
+                                onClick={() => handleStatusChange(member.faculty_id, "absent")}
+                              >
+                                Absent
+                              </button>
+                            </div>
+                          </td>
+                          <td>
+                            {record.status === "present" ? (
+                              <input
+                                type="time"
+                                value={record.checkInTime}
+                                onChange={(e) => handleCheckInTimeChange(member.faculty_id, e.target.value)}
+                                className="table-time-input"
+                              />
+                            ) : (
+                              <span style={{ color: "var(--muted)" }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              placeholder="Notes (optional)"
+                              value={record.notes}
+                              onChange={(e) => handleNotesChange(member.faculty_id, e.target.value)}
+                              className="table-remarks-input"
+                            />
+                          </td>
+                          <td>
+                            <div className="row-actions-cell" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <button
+                                type="button"
+                                className="row-submit-button"
+                                onClick={() => handleIndividualSubmit(member.faculty_id)}
+                                disabled={rowSubmitting[member.faculty_id]}
+                              >
+                                {rowSubmitting[member.faculty_id]
+                                  ? "Saving..."
+                                  : record.status === "present"
+                                  ? "Check In"
+                                  : "Save Absent"}
+                              </button>
+                              {rowStatus[member.faculty_id] && (
+                                <span
+                                  className={`row-status-indicator ${
+                                    rowStatus[member.faculty_id].includes("Saved") ? "success" : "error"
+                                  }`}
+                                >
+                                  {rowStatus[member.faculty_id]}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="attendance-submit-section">
+                {status ? <p className="form-status" style={{ flex: 1 }}>{status}</p> : null}
+                <button className="primary-button" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Submitting..." : "Submit Attendance"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="status-message">No active faculty found.</p>
+          )}
+
+          {status && faculty.length === 0 ? <p className="status-message">{status}</p> : null}
+        </form>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+type AuditFacultyRecord = {
+  attendance_id: string;
+  faculty_id: string;
+  attendance_date: string;
+  status: "present" | "absent";
+  remarks: string | null;
+  marked_by: string | null;
+  marked_at: string;
+  faculty?: {
+    first_name: string;
+    last_name: string;
+    employee_code: string;
+  };
+};
+
+export function CheckInAuditView() {
+  const [records, setRecords] = useState<AuditFacultyRecord[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      options.push({ label, value });
+    }
+    return options;
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    setStatus("");
+    apiRequest<AuditFacultyRecord[]>("/attendance/faculty")
+      .then((data) => {
+        setRecords(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load audit logs:", err);
+        setStatus("Failed to load attendance logs.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredRecords = useMemo(() => {
+    return records.filter((rec) => {
+      const monthMatch = rec.attendance_date.startsWith(selectedMonth);
+      if (!monthMatch) return false;
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const code = rec.faculty?.employee_code?.toLowerCase() || "";
+        const name = `${rec.faculty?.first_name || ""} ${rec.faculty?.last_name || ""}`.toLowerCase();
+        return code.includes(query) || name.includes(query);
+      }
+
+      return true;
+    });
+  }, [records, selectedMonth, searchQuery]);
+
+  function parseRemarks(remarksStr: string | null) {
+    if (!remarksStr) return { time: "—", notes: "—" };
+    try {
+      const parsed = JSON.parse(remarksStr);
+      return {
+        time: parsed.check_in_time || "—",
+        notes: parsed.notes || "—",
+      };
+    } catch {
+      return {
+        time: "—",
+        notes: remarksStr || "—",
+      };
+    }
+  }
+
+  const groupedRecords = useMemo(() => {
+    const groups: Record<string, AuditFacultyRecord[]> = {};
+    const sorted = [...filteredRecords].sort((a, b) => {
+      if (a.attendance_date !== b.attendance_date) {
+        return b.attendance_date.localeCompare(a.attendance_date);
+      }
+      const timeA = parseRemarks(a.remarks).time;
+      const timeB = parseRemarks(b.remarks).time;
+      if (timeA !== timeB) {
+        return timeB.localeCompare(timeA);
+      }
+      return (a.faculty?.employee_code || "").localeCompare(b.faculty?.employee_code || "");
+    });
+
+    sorted.forEach((rec) => {
+      const dateKey = rec.attendance_date;
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(rec);
+    });
+
+    return groups;
+  }, [filteredRecords]);
+
+  function formatDateHeader(dateStr: string) {
+    if (!dateStr) return "";
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(year, month, day);
+      return dateObj.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
+    return dateStr;
+  }
+
+  return (
+    <DashboardLayout title="Check-in Audit">
+      <div className="attendance-page-content">
+        <div className="audit-header-section">
+          <h3>Faculty Check-in History</h3>
+          <div className="audit-filters-container">
+            <select
+              aria-label="Filter by month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              {monthOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Search faculty name or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="audit-search-input"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="status-message">Loading audit logs...</p>
+        ) : Object.keys(groupedRecords).length > 0 ? (
+          <div className="audit-feed">
+            {Object.entries(groupedRecords).map(([dateStr, dayRecords]) => {
+              const presentCount = dayRecords.filter((r) => r.status === "present").length;
+              const absentCount = dayRecords.filter((r) => r.status === "absent").length;
+
+              return (
+                <div key={dateStr} className="audit-date-card">
+                  <div className="audit-date-header">
+                    <div className="audit-date-title-wrapper">
+                      <span className="audit-calendar-icon" aria-hidden="true">
+                        <Icon name="calendar" />
+                      </span>
+                      <h4>{formatDateHeader(dateStr)}</h4>
+                    </div>
+                    <div className="audit-date-stats">
+                      <span className="stats-badge present">{presentCount} Present</span>
+                      {absentCount > 0 && <span className="stats-badge absent">{absentCount} Absent</span>}
+                    </div>
+                  </div>
+                  <div className="audit-date-body">
+                    <div className="audit-log-list">
+                      {dayRecords.map((rec) => {
+                        const name = rec.faculty
+                          ? `${rec.faculty.first_name} ${rec.faculty.last_name || ""}`.trim()
+                          : "Faculty Member";
+                        const { time, notes } = parseRemarks(rec.remarks);
+
+                        return (
+                          <div key={rec.attendance_id} className="audit-log-item">
+                            <div className="audit-log-faculty-info">
+                              <Avatar variant="profile" />
+                              <div className="audit-log-faculty-meta">
+                                <span className="faculty-name">{name}</span>
+                                <span className="faculty-code">{rec.faculty?.employee_code || "N/A"}</span>
+                              </div>
+                            </div>
+
+                            <div className="audit-log-status">
+                              <span className={`status-pill ${rec.status === "present" ? "present" : "absent"}`}>
+                                {rec.status === "present" ? "Checked In" : "Absent"}
+                              </span>
+                            </div>
+
+                            <div className="audit-log-time">
+                              {rec.status === "present" ? (
+                                <>
+                                  <span className="time-icon" aria-hidden="true">
+                                    <Icon name="clock" />
+                                  </span>
+                                  <span className="time-value">{time}</span>
+                                </>
+                              ) : (
+                                <span className="time-value absent-time">—</span>
+                              )}
+                            </div>
+
+                            <div className="audit-log-notes">
+                              <span className="notes-label">Notes:</span>
+                              <span className="notes-value">{notes}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="status-message">No check-in records found for this criteria.</p>
+        )}
+
+        {status && <p className="status-message">{status}</p>}
+      </div>
+    </DashboardLayout>
+  );
+}
+
+export function FacultyManagementView() {
+  const [faculty, setFaculty] = useState<ApiFaculty[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive">("active");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  // Drawer states
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add");
+  const [editingFaculty, setEditingFaculty] = useState<ApiFaculty | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [drawerError, setDrawerError] = useState("");
+
+  const [formData, setFormData] = useState({
+    employee_code: "",
+    first_name: "",
+    last_name: "",
+    designation: "Teacher",
+    phone: "",
+    email: "",
+    joining_date: "",
+    status: "active"
+  });
+
+  const loadFaculty = useCallback(() => {
+    setLoading(true);
+    setStatus("");
+    apiRequest<{ results: ApiFaculty[] }>(`/faculty?status=${statusFilter}&limit=250`)
+      .then((res) => {
+        setFaculty(res.results);
+      })
+      .catch((err) => {
+        console.error("Failed to load faculty directory:", err);
+        setStatus("Failed to load faculty directory.");
+      })
+      .finally(() => setLoading(false));
+  }, [statusFilter]);
+
+  useEffect(() => {
+    loadFaculty();
+  }, [loadFaculty]);
+
+  const filteredFaculty = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return faculty;
+    return faculty.filter((f) => {
+      const code = (f.employee_code || "").toLowerCase();
+      const name = `${f.first_name || ""} ${f.last_name || ""}`.toLowerCase();
+      const desig = (f.designation || "").toLowerCase();
+      const phone = (f.phone || "").toLowerCase();
+      const email = (f.email || "").toLowerCase();
+      return (
+        code.includes(query) ||
+        name.includes(query) ||
+        desig.includes(query) ||
+        phone.includes(query) ||
+        email.includes(query)
+      );
+    });
+  }, [faculty, searchQuery]);
+
+  function openAddDrawer() {
+    setDrawerMode("add");
+    setEditingFaculty(null);
+    setDrawerError("");
+    setFormData({
+      employee_code: "",
+      first_name: "",
+      last_name: "",
+      designation: "Teacher",
+      phone: "",
+      email: "",
+      joining_date: new Date().toISOString().split("T")[0],
+      status: "active"
+    });
+    setIsDrawerOpen(true);
+  }
+
+  function openEditDrawer(member: ApiFaculty) {
+    setDrawerMode("edit");
+    setEditingFaculty(member);
+    setDrawerError("");
+    setFormData({
+      employee_code: member.employee_code || "",
+      first_name: member.first_name || "",
+      last_name: member.last_name || "",
+      designation: member.designation || "Teacher",
+      phone: member.phone || "",
+      email: member.email || "",
+      joining_date: new Date().toISOString().split("T")[0], // Fallback or retrieve if joining_date was selected
+      status: member.status || "active"
+    });
+    setIsDrawerOpen(true);
+  }
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    setDrawerError("");
+    setIsSubmitting(true);
+
+    const payload = {
+      employee_code: formData.employee_code.trim(),
+      first_name: formData.first_name.trim(),
+      last_name: formData.last_name.trim() || null,
+      designation: formData.designation.trim() || "Teacher",
+      phone: formData.phone.trim() || null,
+      email: formData.email.trim() || null,
+      joining_date: formData.joining_date || null,
+      status: formData.status
+    };
+
+    try {
+      if (drawerMode === "add") {
+        await apiRequest("/faculty", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+      } else {
+        await apiRequest(`/faculty/${editingFaculty?.faculty_id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+      }
+      setIsDrawerOpen(false);
+      loadFaculty();
+    } catch (err) {
+      console.error(err);
+      setDrawerError(err instanceof Error ? err.message : "Failed to save faculty member.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDelete(facultyId: string) {
+    if (!confirm("Are you sure you want to delete this faculty member? This will also delete all their related attendance logs.")) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/faculty/${facultyId}`, {
+        method: "DELETE"
+      });
+      loadFaculty();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Failed to delete faculty member.");
+    }
+  }
+
+  return (
+    <DashboardLayout title="Faculty Directory">
+      <div className="attendance-page-content">
+        <div className="audit-header-section" style={{ marginBottom: "20px" }}>
+          <h3>Manage Faculty Directory</h3>
+          <div className="audit-filters-container">
+            <select
+              aria-label="Filter status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "active" | "inactive")}
+            >
+              <option value="active">Active Staff</option>
+              <option value="inactive">Inactive Staff</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Search faculty..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="audit-search-input"
+            />
+            <button className="primary-button" type="button" onClick={openAddDrawer}>
+              Add Faculty
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="status-message">Loading faculty directory...</p>
+        ) : filteredFaculty.length > 0 ? (
+          <div className="faculty-grid">
+            {filteredFaculty.map((member) => {
+              const name = [member.first_name, member.last_name].filter(Boolean).join(" ") || "Faculty Member";
+              return (
+                <div key={member.faculty_id} className="faculty-card">
+                  <div className="faculty-card-status">
+                    <span className={`status-pill ${member.status === "active" ? "present" : "absent"}`}>
+                      {member.status === "active" ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  
+                  <div className="faculty-card-avatar-wrapper">
+                    <Avatar variant="profile" />
+                  </div>
+
+                  <div className="faculty-card-info">
+                    <h4 className="faculty-card-name">{name}</h4>
+                    <span className="faculty-card-designation">{member.designation || "Staff"}</span>
+                    <span className="faculty-card-code">{member.employee_code || "N/A"}</span>
+                  </div>
+
+                  <div className="faculty-card-contact">
+                    {member.phone && (
+                      <div className="contact-item">
+                        <span className="contact-icon" aria-hidden="true">
+                          <Icon name="phone" />
+                        </span>
+                        <span>{member.phone}</span>
+                      </div>
+                    )}
+                    {member.email && (
+                      <div className="contact-item">
+                        <span className="contact-icon" aria-hidden="true">
+                          <Icon name="mail" />
+                        </span>
+                        <span>{member.email}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="faculty-card-actions">
+                    <button
+                      className="secondary-button small"
+                      type="button"
+                      onClick={() => openEditDrawer(member)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="row-submit-button small danger-btn"
+                      type="button"
+                      onClick={() => handleDelete(member.faculty_id)}
+                      style={{ background: "#fee2e2", color: "#b91c1c" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="status-message">No faculty members found for this criteria.</p>
+        )}
+
+        {status && <p className="status-message">{status}</p>}
+      </div>
+
+      {isDrawerOpen && (
+        <div className="drawer-overlay" onClick={() => setIsDrawerOpen(false)}>
+          <div className="drawer-content" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-header">
+              <h3>{drawerMode === "add" ? "Add New Faculty" : "Edit Faculty"}</h3>
+              <button
+                className="drawer-close-btn"
+                onClick={() => setIsDrawerOpen(false)}
+                aria-label="Close drawer"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="drawer-body">
+              <label className="form-field">
+                <span className="field-label">
+                  Employee Code <span style={{ color: "#ef4444" }}>*</span>
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. FAC-04"
+                  value={formData.employee_code}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, employee_code: e.target.value }))}
+                  disabled={drawerMode === "edit"}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">
+                  First Name <span style={{ color: "#ef4444" }}>*</span>
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="First Name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, first_name: e.target.value }))}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">Last Name</span>
+                <input
+                  type="text"
+                  placeholder="Last Name (optional)"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, last_name: e.target.value }))}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">Designation</span>
+                <input
+                  type="text"
+                  placeholder="e.g. Teacher"
+                  value={formData.designation}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, designation: e.target.value }))}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">Phone Number</span>
+                <input
+                  type="text"
+                  placeholder="e.g. +919999990001"
+                  value={formData.phone}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">Email Address</span>
+                <input
+                  type="email"
+                  placeholder="e.g. saraswathi@example.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">Joining Date</span>
+                <input
+                  type="date"
+                  value={formData.joining_date}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, joining_date: e.target.value }))}
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="field-label">Status</span>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+
+              {drawerError && (
+                <p className="form-status error" style={{ color: "#b91c1c", margin: "12px 0 0 0" }}>
+                  {drawerError}
+                </p>
+              )}
+
+              <div className="drawer-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setIsDrawerOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary-button" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save Faculty"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
+  );
+}
