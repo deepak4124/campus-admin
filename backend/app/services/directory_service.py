@@ -2,10 +2,7 @@ from typing import Any, Dict, List, Optional
 
 
 class DirectoryService:
-    STUDENT_SELECT = (
-        "student_id,admission_no,first_name,last_name,class_id,parent_name,"
-        "parent_phone,parent_email,status,photo_url"
-    )
+    STUDENT_SELECT = "*"
     CLASS_SELECT = "class_id,class_name,academic_year,class_teacher_id"
     FACULTY_SELECT = (
         "faculty_id,employee_code,first_name,last_name,designation,phone,email,status"
@@ -55,7 +52,51 @@ class DirectoryService:
         )
         student = self._first_row(response.data)
         self._attach_class_names([student])
-        return {"student": student}
+
+        # Fetch parents details
+        parents_response = (
+            self.supabase.table("student_parents")
+            .select("*")
+            .eq("student_id", student_id)
+            .execute()
+        )
+        parents = parents_response.data[0] if parents_response.data else {}
+
+        # Fetch emergency contacts
+        contacts_response = (
+            self.supabase.table("student_emergency_contacts")
+            .select("*")
+            .eq("student_id", student_id)
+            .order("priority")
+            .execute()
+        )
+        emergency_contacts = contacts_response.data or []
+
+        # Fetch siblings
+        siblings_response = (
+            self.supabase.table("student_siblings")
+            .select("*")
+            .eq("student_id", student_id)
+            .execute()
+        )
+        siblings = siblings_response.data or []
+
+        # Fetch references
+        references_response = (
+            self.supabase.table("student_references")
+            .select("*")
+            .eq("student_id", student_id)
+            .execute()
+        )
+        references = references_response.data or []
+
+        return {
+            "student": student,
+            "parents": parents,
+            "emergency_contacts": emergency_contacts,
+            "siblings": siblings,
+            "references": references,
+        }
 
     def list_students(
         self,

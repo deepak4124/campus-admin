@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { apiRequest } from "./api";
+import * as XLSX from "xlsx";
 
 type IconName =
   | "bell"
@@ -39,6 +40,13 @@ type ApiStudent = {
   parent_email?: string;
   status?: string;
   photo_url?: string;
+  dob?: string;
+  gender?: string;
+  mother_tongue?: string;
+  blood_group?: string;
+  allergy_food?: string;
+  address?: string;
+  admission_date?: string;
 };
 
 type ApiSearchStudentsResponse = {
@@ -2134,66 +2142,84 @@ export function FacultyManagementView() {
         {loading ? (
           <p className="status-message">Loading faculty directory...</p>
         ) : filteredFaculty.length > 0 ? (
-          <div className="faculty-grid">
-            {filteredFaculty.map((member) => {
-              const name = [member.first_name, member.last_name].filter(Boolean).join(" ") || "Faculty Member";
-              return (
-                <div key={member.faculty_id} className="faculty-card">
-                  <div className="faculty-card-status">
-                    <span className={`status-pill ${member.status === "active" ? "present" : "absent"}`}>
-                      {member.status === "active" ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                  
-                  <div className="faculty-card-avatar-wrapper">
-                    <Avatar variant="profile" />
-                  </div>
-
-                  <div className="faculty-card-info">
-                    <h4 className="faculty-card-name">{name}</h4>
-                    <span className="faculty-card-designation">{member.designation || "Staff"}</span>
-                    <span className="faculty-card-code">{member.employee_code || "N/A"}</span>
-                  </div>
-
-                  <div className="faculty-card-contact">
-                    {member.phone && (
-                      <div className="contact-item">
-                        <span className="contact-icon" aria-hidden="true">
-                          <Icon name="phone" />
+          <div className="attendance-table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Faculty</th>
+                  <th>Designation</th>
+                  <th>Contact Info</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: "right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredFaculty.map((member) => {
+                  const name = [member.first_name, member.last_name].filter(Boolean).join(" ") || "Faculty Member";
+                  return (
+                    <tr key={member.faculty_id}>
+                      <td>
+                        <div className="faculty-profile-cell">
+                          <Avatar variant="profile" />
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontWeight: 600, color: "var(--ink)" }}>{name}</span>
+                            <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 500 }}>
+                              Code: {member.employee_code || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 500 }}>{member.designation || "Staff"}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          {member.phone && (
+                            <span style={{ fontSize: "13px", fontWeight: 500 }}>{member.phone}</span>
+                          )}
+                          {member.email && (
+                            <span style={{ fontSize: "11px", color: "var(--muted)" }}>{member.email}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`status-pill ${member.status === "active" ? "present" : "absent"}`}>
+                          {member.status === "active" ? "Active" : "Inactive"}
                         </span>
-                        <span>{member.phone}</span>
-                      </div>
-                    )}
-                    {member.email && (
-                      <div className="contact-item">
-                        <span className="contact-icon" aria-hidden="true">
-                          <Icon name="mail" />
-                        </span>
-                        <span>{member.email}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="faculty-card-actions">
-                    <button
-                      className="secondary-button small"
-                      type="button"
-                      onClick={() => openEditDrawer(member)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="row-submit-button small danger-btn"
-                      type="button"
-                      onClick={() => handleDelete(member.faculty_id)}
-                      style={{ background: "#fee2e2", color: "#b91c1c" }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => openEditDrawer(member)}
+                            style={{ minHeight: "32px", padding: "0 14px", fontSize: "10px", borderRadius: "9999px" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="row-submit-button danger-btn"
+                            type="button"
+                            onClick={() => handleDelete(member.faculty_id)}
+                            style={{
+                              minHeight: "32px",
+                              padding: "0 14px",
+                              fontSize: "10px",
+                              borderRadius: "9999px",
+                              background: "#fee2e2",
+                              color: "#b91c1c",
+                              border: "1px solid #fee2e2",
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
           <p className="status-message">No faculty members found for this criteria.</p>
@@ -2342,6 +2368,17 @@ export function StudentManagementView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<ApiStudent | null>(null);
 
+  // Tabular Registry state
+  const [viewMode, setViewMode] = useState<"list" | "detailed">("list");
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [selectedStudentData, setSelectedStudentData] = useState<{
+    student: ApiStudent;
+    parents?: any;
+    emergency_contacts?: any[];
+    siblings?: any[];
+    references?: any[];
+  } | null>(null);
+
   const loadStudents = useCallback(() => {
     setLoading(true);
     setStatus("");
@@ -2399,34 +2436,118 @@ export function StudentManagementView() {
     }
   }
 
+  async function handleViewDetails(student: ApiStudent) {
+    setSelectedStudent(student);
+    setIsModalOpen(true);
+    setLoadingDetails(true);
+    setSelectedStudentData({ student });
+    try {
+      const data = await apiRequest<any>(`/students/${student.student_id}`);
+      setSelectedStudentData(data);
+    } catch (err) {
+      console.error("Failed to load student details:", err);
+    } finally {
+      setLoadingDetails(false);
+    }
+  }
+
+  function downloadXLSX() {
+    if (!students || students.length === 0) return;
+    
+    // Prepare raw data
+    const data = students.map((s) => ({
+      "Admission No": s.admission_no || "",
+      "First Name": s.first_name || "",
+      "Last Name": s.last_name || "",
+      "Class": s.class_name || "Unassigned",
+      "Gender": s.gender || "",
+      "Date of Birth": s.dob || "",
+      "Mother Tongue": s.mother_tongue || "",
+      "Blood Group": s.blood_group || "",
+      "Allergies": s.allergy_food || "",
+      "Parent Name": s.parent_name || "",
+      "Parent Phone": s.parent_phone || "",
+      "Parent Email": s.parent_email || "",
+      "Address": s.address || "",
+      "Status": s.status || "",
+    }));
+    
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+    
+    // Generate buffer
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    
+    // Create blob and trigger download
+    const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `student_records_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <DashboardLayout title="Student Directory">
       <div className="attendance-page-content">
-        <div className="audit-header-section" style={{ marginBottom: "20px" }}>
-          <h3>Manage Student Directory</h3>
-          <div className="audit-filters-container">
-            <div className="directory-tabs">
-              <button
-                className={statusFilter === "active" ? "tab-btn active" : "tab-btn"}
-                type="button"
-                onClick={() => setStatusFilter("active")}
-              >
-                Active Students
-              </button>
-              <button
-                className={statusFilter === "inactive" ? "tab-btn active" : "tab-btn"}
-                type="button"
-                onClick={() => setStatusFilter("inactive")}
-              >
-                Inactive / Archived
-              </button>
+        <div className="audit-header-section" style={{ marginBottom: "20px", display: "flex", flexDirection: "column", gap: "16px", alignItems: "stretch" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3>Manage Student Directory</h3>
+            <button
+              className="primary-button"
+              onClick={downloadXLSX}
+              style={{ minHeight: "36px", padding: "0 18px", fontSize: "10px" }}
+            >
+              Download XLSX
+            </button>
+          </div>
+          <div className="audit-filters-container" style={{ display: "flex", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", width: "100%" }}>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <div className="directory-tabs">
+                <button
+                  className={statusFilter === "active" ? "tab-btn active" : "tab-btn"}
+                  type="button"
+                  onClick={() => setStatusFilter("active")}
+                >
+                  Active Students
+                </button>
+                <button
+                  className={statusFilter === "inactive" ? "tab-btn active" : "tab-btn"}
+                  type="button"
+                  onClick={() => setStatusFilter("inactive")}
+                >
+                  Inactive / Archived
+                </button>
+              </div>
+
+              <div className="directory-tabs">
+                <button
+                  className={viewMode === "list" ? "tab-btn active" : "tab-btn"}
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                >
+                  Directory View
+                </button>
+                <button
+                  className={viewMode === "detailed" ? "tab-btn active" : "tab-btn"}
+                  type="button"
+                  onClick={() => setViewMode("detailed")}
+                >
+                  Detailed Registry
+                </button>
+              </div>
             </div>
+
             <input
               type="text"
               placeholder="Search students..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="audit-search-input"
+              style={{ margin: 0 }}
             />
           </div>
         </div>
@@ -2434,68 +2555,154 @@ export function StudentManagementView() {
         {loading ? (
           <p className="status-message">Loading student directory...</p>
         ) : filteredStudents.length > 0 ? (
-          <div className="student-grid-directory">
-            {filteredStudents.map((student) => {
-              const name = [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student";
-              return (
-                <div key={student.student_id} className="student-card-directory">
-                  <div className="student-card-header">
-                    <span className="student-card-admission">No: {student.admission_no || "N/A"}</span>
-                    <span className={`status-pill ${student.status === "active" ? "present" : "absent"}`}>
-                      {student.status === "active" ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                  
-                  <div className="student-card-avatar-wrapper">
-                    <Avatar variant="student" src={student.photo_url} />
-                  </div>
-
-                  <div className="student-card-info">
-                    <h4 className="student-card-name">{name}</h4>
-                    <span className="student-card-class">{student.class_name || "Unassigned Class"}</span>
-                  </div>
-
-                  <div className="student-card-contact">
-                    <div className="contact-item">
-                      <span className="contact-icon" aria-hidden="true">
-                        <Icon name="user" />
-                      </span>
-                      <span>{student.parent_name || "No Parent Info"}</span>
-                    </div>
-                    {student.parent_phone && (
-                      <div className="contact-item">
-                        <span className="contact-icon" aria-hidden="true">
-                          <Icon name="phone" />
-                        </span>
-                        <span>{student.parent_phone}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="student-card-actions">
-                    <button
-                      className="secondary-button small"
-                      type="button"
-                      onClick={() => {
-                        setSelectedStudent(student);
-                        setIsModalOpen(true);
-                      }}
-                    >
-                      View Details
-                    </button>
-                    <button
-                      className={`row-submit-button small ${student.status === "active" ? "danger-btn" : ""}`}
-                      type="button"
-                      onClick={() => handleToggleStatus(student)}
-                      style={student.status === "active" ? { background: "#fee2e2", color: "#b91c1c" } : { background: "#dcfce7", color: "#15803d" }}
-                    >
-                      {student.status === "active" ? "Deactivate" : "Activate"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          viewMode === "list" ? (
+            <div className="attendance-table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Parent / Guardian</th>
+                    <th>Contact Info</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((student) => {
+                    const name = [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student";
+                    return (
+                      <tr key={student.student_id}>
+                        <td>
+                          <div className="student-profile-cell">
+                            <Avatar variant="student" src={student.photo_url} />
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <span style={{ fontWeight: 600, color: "var(--ink)" }}>{name}</span>
+                              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 500 }}>
+                                No: {student.admission_no || "N/A"}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 500 }}>{student.class_name || "Unassigned"}</span>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 500 }}>{student.parent_name || "—"}</span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            {student.parent_phone && (
+                              <span style={{ fontSize: "13px", fontWeight: 500 }}>{student.parent_phone}</span>
+                            )}
+                            {student.parent_email && (
+                              <span style={{ fontSize: "11px", color: "var(--muted)" }}>{student.parent_email}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`status-pill ${student.status === "active" ? "present" : "absent"}`}>
+                            {student.status === "active" ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              onClick={() => handleViewDetails(student)}
+                              style={{ minHeight: "32px", padding: "0 14px", fontSize: "10px", borderRadius: "9999px" }}
+                            >
+                              Details
+                            </button>
+                            <button
+                              className="row-submit-button"
+                              type="button"
+                              onClick={() => handleToggleStatus(student)}
+                              style={{
+                                minHeight: "32px",
+                                padding: "0 14px",
+                                fontSize: "10px",
+                                borderRadius: "9999px",
+                                ...(student.status === "active"
+                                  ? { background: "#fee2e2", color: "#b91c1c", border: "1px solid #fee2e2" }
+                                  : { background: "#dcfce7", color: "#15803d", border: "1px solid #dcfce7" }),
+                              }}
+                            >
+                              {student.status === "active" ? "Deactivate" : "Activate"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="attendance-table-container" style={{ overflowX: "auto" }}>
+              <table style={{ minWidth: "1600px" }}>
+                <thead>
+                  <tr>
+                    <th>Student Name</th>
+                    <th>Admission No</th>
+                    <th>Class</th>
+                    <th>DOB</th>
+                    <th>Gender</th>
+                    <th>Mother Tongue</th>
+                    <th>Blood Group</th>
+                    <th>Allergies</th>
+                    <th>Address</th>
+                    <th>Parent / Guardian</th>
+                    <th>Parent Phone</th>
+                    <th>Parent Email</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((student) => {
+                    const name = [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student";
+                    return (
+                      <tr key={student.student_id}>
+                        <td style={{ fontWeight: 600, color: "var(--ink)" }}>{name}</td>
+                        <td>{student.admission_no || "N/A"}</td>
+                        <td>{student.class_name || "Unassigned"}</td>
+                        <td>{student.dob || "—"}</td>
+                        <td>{student.gender || "—"}</td>
+                        <td>{student.mother_tongue || "—"}</td>
+                        <td>{student.blood_group || "—"}</td>
+                        <td>{student.allergy_food || "—"}</td>
+                        <td style={{ maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={student.address}>
+                          {student.address || "—"}
+                        </td>
+                        <td>{student.parent_name || "—"}</td>
+                        <td>{student.parent_phone || "—"}</td>
+                        <td>{student.parent_email || "—"}</td>
+                        <td>
+                          <span className={`status-pill ${student.status === "active" ? "present" : "absent"}`}>
+                            {student.status === "active" ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              onClick={() => handleViewDetails(student)}
+                              style={{ minHeight: "32px", padding: "0 14px", fontSize: "10px", borderRadius: "9999px" }}
+                            >
+                              Details
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
           <p className="status-message">No students found for this criteria.</p>
         )}
@@ -2517,7 +2724,7 @@ export function StudentManagementView() {
                 ×
               </button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body" style={{ maxHeight: "75vh", overflowY: "auto" }}>
               <div className="modal-profile-section">
                 <Avatar variant="student" src={selectedStudent.photo_url} />
                 <h4 className="modal-student-name">
@@ -2525,40 +2732,193 @@ export function StudentManagementView() {
                 </h4>
                 <span className="modal-student-admission">Admission No: {selectedStudent.admission_no || "N/A"}</span>
               </div>
-              <div className="modal-details-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Class</span>
-                  <span className="detail-value">{selectedStudent.class_name || "Unassigned"}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Parent / Guardian Name</span>
-                  <span className="detail-value">{selectedStudent.parent_name || "N/A"}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Parent Phone</span>
-                  <span className="detail-value">{selectedStudent.parent_phone || "N/A"}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Parent Email</span>
-                  <span className="detail-value">{selectedStudent.parent_email || "N/A"}</span>
-                </div>
-                <div className="detail-item full-width status-toggle-item">
-                  <span className="detail-label">Status Toggle</span>
-                  <div className="status-toggle-wrapper">
-                    <span className={`status-pill ${selectedStudent.status === "active" ? "present" : "absent"}`}>
-                      {selectedStudent.status === "active" ? "Active Status" : "Inactive / Archived"}
-                    </span>
-                    <button
-                      className="primary-button small-btn"
-                      type="button"
-                      onClick={() => handleToggleStatus(selectedStudent)}
-                      style={selectedStudent.status === "active" ? { background: "#b91c1c", borderColor: "#b91c1c" } : { background: "#15803d", borderColor: "#15803d" }}
-                    >
-                      {selectedStudent.status === "active" ? "Mark Inactive" : "Mark Active"}
-                    </button>
+              
+              {loadingDetails ? (
+                <p style={{ textAlign: "center", color: "var(--muted)", fontSize: "14px", padding: "20px" }}>
+                  Loading additional details...
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  
+                  {/* Student Details */}
+                  <div>
+                    <h5 style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", borderBottom: "1px solid var(--border-soft)", paddingBottom: "6px", marginBottom: "12px", fontWeight: 700 }}>
+                      Student Information
+                    </h5>
+                    <div className="modal-details-grid">
+                      <div className="detail-item">
+                        <span className="detail-label">Class</span>
+                        <span className="detail-value">{selectedStudent.class_name || "Unassigned"}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Gender</span>
+                        <span className="detail-value">{selectedStudentData?.student?.gender || "—"}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Date of Birth</span>
+                        <span className="detail-value">{selectedStudentData?.student?.dob || "—"}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Mother Tongue</span>
+                        <span className="detail-value">{selectedStudentData?.student?.mother_tongue || "—"}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Blood Group</span>
+                        <span className="detail-value">{selectedStudentData?.student?.blood_group || "—"}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Allergies</span>
+                        <span className="detail-value">{selectedStudentData?.student?.allergy_food || "None"}</span>
+                      </div>
+                      <div className="detail-item full-width">
+                        <span className="detail-label">Address</span>
+                        <span className="detail-value" style={{ fontWeight: 500 }}>{selectedStudentData?.student?.address || "—"}</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Parents Details */}
+                  {selectedStudentData?.parents && (
+                    <div>
+                      <h5 style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", borderBottom: "1px solid var(--border-soft)", paddingBottom: "6px", marginBottom: "12px", fontWeight: 700 }}>
+                        Parents & Guardian Details
+                      </h5>
+                      <div className="modal-details-grid">
+                        <div className="detail-item">
+                          <span className="detail-label">Father&apos;s Name</span>
+                          <span className="detail-value">{selectedStudentData.parents.father_name || "—"}</span>
+                        </div>
+                        <div className="detail-item">
+                          <span className="detail-label">Father&apos;s Phone</span>
+                          <span className="detail-value">{selectedStudentData.parents.father_phone || "—"}</span>
+                        </div>
+                        <div className="detail-item">
+                          <span className="detail-label">Father&apos;s Occupation</span>
+                          <span className="detail-value">{selectedStudentData.parents.father_occupation || "—"}</span>
+                        </div>
+                        <div className="detail-item">
+                          <span className="detail-label">Mother&apos;s Name</span>
+                          <span className="detail-value">{selectedStudentData.parents.mother_name || "—"}</span>
+                        </div>
+                        <div className="detail-item">
+                          <span className="detail-label">Mother&apos;s Phone</span>
+                          <span className="detail-value">{selectedStudentData.parents.mother_phone || "—"}</span>
+                        </div>
+                        <div className="detail-item">
+                          <span className="detail-label">Mother&apos;s Occupation</span>
+                          <span className="detail-value">{selectedStudentData.parents.mother_occupation || "—"}</span>
+                        </div>
+                        <div className="detail-item full-width">
+                          <span className="detail-label">Parent Email</span>
+                          <span className="detail-value">{selectedStudent.parent_email || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Emergency Contacts */}
+                  {selectedStudentData?.emergency_contacts && selectedStudentData.emergency_contacts.length > 0 && (
+                    <div>
+                      <h5 style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", borderBottom: "1px solid var(--border-soft)", paddingBottom: "6px", marginBottom: "12px", fontWeight: 700 }}>
+                        Emergency Contacts
+                      </h5>
+                      <table style={{ fontSize: "12px", border: "1px solid var(--border-soft)" }}>
+                        <thead>
+                          <tr style={{ background: "var(--tint)" }}>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>Priority</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>Name</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>Relation</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px", textAlign: "right" }}>Phone</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedStudentData.emergency_contacts.map((contact) => (
+                            <tr key={contact.priority}>
+                              <td style={{ padding: "8px 12px" }}>{contact.priority}</td>
+                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{contact.contact_name}</td>
+                              <td style={{ padding: "8px 12px" }}>{contact.relation || "—"}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "right" }}>{contact.phone}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Siblings */}
+                  {selectedStudentData?.siblings && selectedStudentData.siblings.length > 0 && (
+                    <div>
+                      <h5 style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", borderBottom: "1px solid var(--border-soft)", paddingBottom: "6px", marginBottom: "12px", fontWeight: 700 }}>
+                        Siblings Information
+                      </h5>
+                      <table style={{ fontSize: "12px", border: "1px solid var(--border-soft)" }}>
+                        <thead>
+                          <tr style={{ background: "var(--tint)" }}>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>Name</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>DOB</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px", textAlign: "right" }}>School</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedStudentData.siblings.map((sibling, index) => (
+                            <tr key={index}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{sibling.full_name}</td>
+                              <td style={{ padding: "8px 12px" }}>{sibling.dob || "—"}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "right" }}>{sibling.school_name || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* References */}
+                  {selectedStudentData?.references && selectedStudentData.references.length > 0 && (
+                    <div>
+                      <h5 style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", borderBottom: "1px solid var(--border-soft)", paddingBottom: "6px", marginBottom: "12px", fontWeight: 700 }}>
+                        Reference Information
+                      </h5>
+                      <table style={{ fontSize: "12px", border: "1px solid var(--border-soft)" }}>
+                        <thead>
+                          <tr style={{ background: "var(--tint)" }}>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>Referred By</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px" }}>Details</th>
+                            <th style={{ padding: "8px 12px", fontSize: "10px", textAlign: "right" }}>Phone</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedStudentData.references.map((ref, index) => (
+                            <tr key={index}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{ref.reference_through || "—"}</td>
+                              <td style={{ padding: "8px 12px" }}>{ref.reference_details || "—"}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "right" }}>{ref.reference_phone || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Status Toggle */}
+                  <div className="detail-item full-width status-toggle-item" style={{ borderTop: "1px solid var(--border-soft)", paddingTop: "16px", marginTop: "8px" }}>
+                    <span className="detail-label">Status Toggle</span>
+                    <div className="status-toggle-wrapper" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+                      <span className={`status-pill ${selectedStudent.status === "active" ? "present" : "absent"}`}>
+                        {selectedStudent.status === "active" ? "Active Status" : "Inactive / Archived"}
+                      </span>
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => handleToggleStatus(selectedStudent)}
+                        style={selectedStudent.status === "active" ? { background: "#b91c1c", borderColor: "#b91c1c", minHeight: "36px", padding: "0 16px" } : { background: "#15803d", borderColor: "#15803d", minHeight: "36px", padding: "0 16px" }}
+                      >
+                        {selectedStudent.status === "active" ? "Mark Inactive" : "Mark Active"}
+                      </button>
+                    </div>
+                  </div>
+                  
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
