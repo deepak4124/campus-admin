@@ -611,8 +611,8 @@ export function AdmissionFormView() {
                 name="full_name" 
                 placeholder="Enter student's full name" 
                 required={true}
-                pattern="^[A-Za-z ]+$"
-                title="Full name must only contain alphabetic letters and spaces"
+                pattern="^[A-Za-z .]+$"
+                title="Full name must only contain alphabetic letters, spaces, and periods"
               />
               <Field 
                 label="Date of Birth" 
@@ -725,8 +725,8 @@ export function AdmissionFormView() {
               label="Reference Name" 
               name="reference_name" 
               placeholder="Person who referred you" 
-              pattern="^[A-Za-z ]+$"
-              title="Name must only contain alphabetic letters and spaces"
+              pattern="^[A-Za-z .]+$"
+              title="Name must only contain alphabetic letters, spaces, and periods"
             />
             <Field 
               label="Contact Number" 
@@ -843,8 +843,8 @@ function ParentBlock({ title, name, prefix, showEmail }: { title: string; name: 
         name={`${prefix}_name`} 
         placeholder={name} 
         required={true} 
-        pattern="^[A-Za-z ]+$" 
-        title="Name must only contain alphabetic letters and spaces" 
+        pattern="^[A-Za-z .]+$" 
+        title="Name must only contain alphabetic letters, spaces, and periods" 
       />
       <Field 
         label="Occupation" 
@@ -907,8 +907,8 @@ function ContactRow({ contact, index, onChange }: { contact: EmergencyContact; i
         value={contact.name} 
         onChange={(event) => onChange(index, "name", event.target.value)} 
         required={isMandatory}
-        pattern="^[A-Za-z ]+$"
-        title="Name must only contain alphabetic letters and spaces"
+        pattern="^[A-Za-z .]+$"
+        title="Name must only contain alphabetic letters, spaces, and periods"
       />
       <input 
         placeholder={`Contact Number${isMandatory ? " *" : ""}`}
