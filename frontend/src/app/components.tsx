@@ -1093,7 +1093,7 @@ export function DashboardView() {
               {/* Card 1: Today's Student Presence */}
               <div className="audit-date-card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
-                  Today's Student Presence
+                  {"Today's Student Presence"}
                 </span>
                 <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--ink)" }}>
                   {todayStudentStats.present} / {todayStudentStats.total}
@@ -1106,7 +1106,7 @@ export function DashboardView() {
               {/* Card 2: Today's Faculty Presence */}
               <div className="audit-date-card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
-                  Today's Faculty Check-ins
+                  {"Today's Faculty Check-ins"}
                 </span>
                 <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--ink)" }}>
                   {todayFacultyStats.present} / {todayFacultyStats.total}
