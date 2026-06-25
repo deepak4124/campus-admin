@@ -106,15 +106,35 @@ const PHONE_LOCATIONS = [
 
 const FEE_CATEGORIES = ["Tuition Fee", "Academic Fee", "Miscellaneous"];
 
-const navItems: Array<{ label: string; href: string; icon: IconName; }> = [
-  { label: "Dashboard", href: "/dashboard", icon: "grid" },
-  { label: "Students", href: "/students", icon: "students" },
-  { label: "Faculty", href: "/faculty", icon: "user" },
-  { label: "Student Attendance", href: "/student-attendance", icon: "calendar" },
-  { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" },
-  { label: "Check-in Audit", href: "/check-in-audit", icon: "chart" },
-  { label: "Fee Management", href: "/fee-management", icon: "money" },
-  { label: "Reports", href: "/reports", icon: "chart" },
+const navSections = [
+  {
+    title: "General",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: "grid" as const }
+    ]
+  },
+  {
+    title: "Directory",
+    items: [
+      { label: "Students", href: "/students", icon: "students" as const },
+      { label: "Faculty", href: "/faculty", icon: "user" as const }
+    ]
+  },
+  {
+    title: "Attendance & Audits",
+    items: [
+      { label: "Student Attendance", href: "/student-attendance", icon: "calendar" as const },
+      { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" as const },
+      { label: "Check-in Audit", href: "/check-in-audit", icon: "chart" as const }
+    ]
+  },
+  {
+    title: "Management & Reports",
+    items: [
+      { label: "Fee Management", href: "/fee-management", icon: "money" as const },
+      { label: "Reports", href: "/reports", icon: "chart" as const }
+    ]
+  }
 ];
 
 export function DashboardLayout({ children, title, className = "" }: { children: ReactNode; title?: string; className?: string }) {
@@ -124,35 +144,49 @@ export function DashboardLayout({ children, title, className = "" }: { children:
     <section className="fee-shell" aria-label={title || "Dashboard"}>
       <aside className="fee-sidebar">
         <div className="fee-brand">
-          <Icon name="grid" />
           <h1 className="brand-title">Blooming Daffodils</h1>
           <p className="brand-subtitle">Administrative Portal</p>
         </div>
 
         <nav className="fee-nav" aria-label="Primary navigation">
-          {navItems.map((item) => {
-            const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
-            return (
-              <a className={isActive ? "active" : ""} href={item.href} key={item.label}>
-                <Icon name={item.icon} />
-                <span>{item.label}</span>
-              </a>
-            );
-          })}
+          {navSections.map((section) => (
+            <div key={section.title} className="nav-section">
+              <span className="nav-section-title">{section.title}</span>
+              <div className="nav-section-items">
+                {section.items.map((item) => {
+                  const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
+                  return (
+                    <a className={isActive ? "active" : ""} href={item.href} key={item.label}>
+                      <Icon name={item.icon} />
+                      <span>{item.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
-
-        <button className="sidebar-user" type="button" onClick={logoutAdmin}>
-          <Avatar variant="admin" />
-          <div>
-            <strong>Admin</strong>
-            <span>Sign out</span>
-          </div>
-        </button>
       </aside>
 
       <div className="fee-main" id="dashboard-main">
         <header className="fee-topbar">
           <h2>{title || "Dashboard"}</h2>
+          <div className="top-actions" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <button className="icon-button" aria-label="Notifications" type="button">
+              <Icon name="bell" />
+            </button>
+            <div className="top-divider" />
+            <div className="header-profile-card" onClick={logoutAdmin}>
+              <div className="avatar-wrapper">AD</div>
+              <div className="profile-info">
+                <span className="profile-name">School Admin</span>
+                <span className="profile-sub">Sign out</span>
+              </div>
+              <svg className="chevron-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </header>
 
         <div className={`fee-content ${className}`}>{children}</div>
@@ -1354,7 +1388,6 @@ export function StudentAttendanceView() {
                       <tr key={student.student_id}>
                         <td>
                           <div className="student-profile-cell">
-                            <Avatar variant="student" src={student.photo_url} />
                             <span>{studentName(student)}</span>
                           </div>
                         </td>
@@ -1419,6 +1452,15 @@ type ApiFaculty = {
   phone?: string;
   email?: string;
   status?: string;
+};
+
+type AuditFacultyRecord = {
+  attendance_id: string;
+  faculty_id: string;
+  attendance_date: string;
+  status: string;
+  remarks: string | null;
+  faculty?: ApiFaculty;
 };
 
 export function FacultyAttendanceView() {
@@ -1727,26 +1769,21 @@ export function FacultyAttendanceView() {
   );
 }
 
-type AuditFacultyRecord = {
-  attendance_id: string;
-  faculty_id: string;
-  attendance_date: string;
-  status: "present" | "absent";
-  remarks: string | null;
-  marked_by: string | null;
-  marked_at: string;
-  faculty?: {
-    first_name: string;
-    last_name: string;
-    employee_code: string;
-  };
-};
-
 export function CheckInAuditView() {
   const [records, setRecords] = useState<AuditFacultyRecord[]>([]);
+  const [facultyList, setFacultyList] = useState<ApiFaculty[]>([]);
+  const [activeTab, setActiveTab] = useState<"grid" | "feed">("grid");
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(today.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1767,6 +1804,8 @@ export function CheckInAuditView() {
   useEffect(() => {
     setLoading(true);
     setStatus("");
+    
+    // Load records
     apiRequest<AuditFacultyRecord[]>("/attendance/faculty")
       .then((data) => {
         setRecords(data);
@@ -1776,7 +1815,51 @@ export function CheckInAuditView() {
         setStatus("Failed to load attendance logs.");
       })
       .finally(() => setLoading(false));
+
+    // Load faculty members
+    apiRequest<{ results: ApiFaculty[] }>("/faculty?limit=200")
+      .then((res) => {
+        setFacultyList(res.results || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load faculty:", err);
+      });
   }, []);
+
+  const weekDays = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(currentWeekStart);
+      d.setDate(currentWeekStart.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentWeekStart]);
+
+  const weekRangeLabel = useMemo(() => {
+    const start = weekDays[0];
+    const end = weekDays[6];
+    const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+    return `${start.toLocaleDateString("en-US", opt)} - ${end.toLocaleDateString("en-US", opt)}`;
+  }, [weekDays]);
+
+  function changeWeek(offset: number) {
+    setCurrentWeekStart((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + offset * 7);
+      return next;
+    });
+  }
+
+  const filteredFaculty = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return facultyList;
+    return facultyList.filter((f) => {
+      const name = `${f.first_name || ""} ${f.last_name || ""}`.toLowerCase();
+      const code = (f.employee_code || "").toLowerCase();
+      return name.includes(query) || code.includes(query);
+    });
+  }, [facultyList, searchQuery]);
 
   const filteredRecords = useMemo(() => {
     return records.filter((rec) => {
@@ -1809,6 +1892,41 @@ export function CheckInAuditView() {
       };
     }
   }
+
+  const attendanceStats = useMemo(() => {
+    let presentCount = 0;
+    let absentCount = 0;
+    let weekendCount = 0;
+
+    weekDays.forEach((day) => {
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      if (isWeekend) {
+        weekendCount += facultyList.length;
+      }
+      
+      const dateStr = day.toISOString().split("T")[0];
+      facultyList.forEach((fac) => {
+        const rec = records.find(r => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr);
+        if (rec) {
+          if (rec.status === "present") {
+            presentCount++;
+          } else if (rec.status === "absent") {
+            absentCount++;
+          }
+        }
+      });
+    });
+
+    const total = presentCount + absentCount + weekendCount || 1;
+    return {
+      presentPct: Math.round((presentCount / total) * 100),
+      absentPct: Math.round((absentCount / total) * 100),
+      weekendPct: Math.round((weekendCount / total) * 100),
+      presentCount,
+      absentCount,
+      weekendCount
+    };
+  }, [weekDays, facultyList, records]);
 
   const groupedRecords = useMemo(() => {
     const groups: Record<string, AuditFacultyRecord[]> = {};
@@ -1856,104 +1974,271 @@ export function CheckInAuditView() {
   return (
     <DashboardLayout title="Check-in Audit">
       <div className="attendance-page-content">
-        <div className="audit-header-section">
-          <h3>Faculty Check-in History</h3>
-          <div className="audit-filters-container">
-            <select
-              aria-label="Filter by month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-            >
-              {monthOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+        <div className="audit-header-section" style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "16px", alignItems: "stretch" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3>Faculty Attendance Records</h3>
+            <div className="directory-tabs" style={{ alignSelf: "center", margin: 0 }}>
+              <button
+                className={activeTab === "grid" ? "tab-btn active" : "tab-btn"}
+                type="button"
+                onClick={() => setActiveTab("grid")}
+              >
+                Weekly Grid
+              </button>
+              <button
+                className={activeTab === "feed" ? "tab-btn active" : "tab-btn"}
+                type="button"
+                onClick={() => setActiveTab("feed")}
+              >
+                History Feed
+              </button>
+            </div>
+          </div>
+          
+          <div className="audit-filters-container" style={{ display: "flex", justifyContent: "space-between", gap: "16px", width: "100%" }}>
+            {activeTab === "feed" ? (
+              <select
+                aria-label="Filter by month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ width: "200px" }}
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", background: "var(--tint)", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                  {weekRangeLabel}
+                </span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button
+                    className="secondary-button"
+                    onClick={() => changeWeek(-1)}
+                    style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
+                    title="Previous Week"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() => changeWeek(1)}
+                    style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
+                    title="Next Week"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <input
               type="text"
-              placeholder="Search faculty name or code..."
+              placeholder="Search faculty..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="audit-search-input"
+              style={{ margin: 0 }}
             />
           </div>
         </div>
 
-        {loading ? (
-          <p className="status-message">Loading audit logs...</p>
-        ) : Object.keys(groupedRecords).length > 0 ? (
-          <div className="audit-feed">
-            {Object.entries(groupedRecords).map(([dateStr, dayRecords]) => {
-              const presentCount = dayRecords.filter((r) => r.status === "present").length;
-              const absentCount = dayRecords.filter((r) => r.status === "absent").length;
+        {activeTab === "grid" ? (
+          <>
+            {/* Scholarly statistics bar */}
+            <div className="attendance-stats-summary">
+              <div className="stat-item">
+                <span className="bullet holiday"></span>
+                <span>Holiday: {attendanceStats.weekendPct}%</span>
+              </div>
+              <div className="stat-item">
+                <span className="bullet present"></span>
+                <span>Checked In: {attendanceStats.presentPct}%</span>
+              </div>
+              <div className="stat-item">
+                <span className="bullet absent"></span>
+                <span>Absent: {attendanceStats.absentPct}%</span>
+              </div>
+            </div>
 
-              return (
-                <div key={dateStr} className="audit-date-card">
-                  <div className="audit-date-header">
-                    <div className="audit-date-title-wrapper">
-                      <span className="audit-calendar-icon" aria-hidden="true">
-                        <Icon name="calendar" />
-                      </span>
-                      <h4>{formatDateHeader(dateStr)}</h4>
-                    </div>
-                    <div className="audit-date-stats">
-                      <span className="stats-badge present">{presentCount} Present</span>
-                      {absentCount > 0 && <span className="stats-badge absent">{absentCount} Absent</span>}
-                    </div>
-                  </div>
-                  <div className="audit-date-body">
-                    <div className="audit-log-list">
-                      {dayRecords.map((rec) => {
-                        const name = rec.faculty
-                          ? `${rec.faculty.first_name} ${rec.faculty.last_name || ""}`.trim()
-                          : "Faculty Member";
-                        const { time, notes } = parseRemarks(rec.remarks);
-
-                        return (
-                          <div key={rec.attendance_id} className="audit-log-item">
-                            <div className="audit-log-faculty-info">
-                              <Avatar variant="profile" />
-                              <div className="audit-log-faculty-meta">
-                                <span className="faculty-name">{name}</span>
-                                <span className="faculty-code">{rec.faculty?.employee_code || "N/A"}</span>
-                              </div>
-                            </div>
-
-                            <div className="audit-log-status">
-                              <span className={`status-pill ${rec.status === "present" ? "present" : "absent"}`}>
-                                {rec.status === "present" ? "Checked In" : "Absent"}
-                              </span>
-                            </div>
-
-                            <div className="audit-log-time">
-                              {rec.status === "present" ? (
-                                <>
-                                  <span className="time-icon" aria-hidden="true">
-                                    <Icon name="clock" />
-                                  </span>
-                                  <span className="time-value">{time}</span>
-                                </>
-                              ) : (
-                                <span className="time-value absent-time">—</span>
-                              )}
-                            </div>
-
-                            <div className="audit-log-notes">
-                              <span className="notes-label">Notes:</span>
-                              <span className="notes-value">{notes}</span>
+            <div className="attendance-grid-container">
+              <table className="attendance-grid-table">
+                <thead>
+                  <tr>
+                    <th>Staff Profile</th>
+                    {weekDays.map((day, idx) => {
+                      const dateNum = day.getDate();
+                      const weekdayStr = day.toLocaleDateString("en-US", { weekday: "short" });
+                      return (
+                        <th key={idx} style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>{dateNum}</div>
+                          <div style={{ fontSize: "9px", color: "var(--muted)", fontWeight: 500 }}>{weekdayStr}</div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFaculty.map((member) => {
+                    const name = [member.first_name, member.last_name].filter(Boolean).join(" ") || "Faculty Member";
+                    return (
+                      <tr key={member.faculty_id}>
+                        <td>
+                          <div className="grid-profile-cell">
+                            <Avatar variant="profile" />
+                            <div>
+                              <div className="grid-profile-name">{name}</div>
+                              <div className="grid-profile-code">Code: {member.employee_code || "N/A"}</div>
                             </div>
                           </div>
-                        );
-                      })}
+                        </td>
+                        {weekDays.map((day, idx) => {
+                          const dateStr = day.toISOString().split("T")[0];
+                          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                          
+                          // Find record
+                          const rec = records.find(
+                            (r) => r.faculty_id === member.faculty_id && r.attendance_date === dateStr
+                          );
+                          
+                          if (isWeekend) {
+                            return (
+                              <td key={idx}>
+                                <div className="grid-attendance-card holiday">
+                                  <span className="grid-card-status">Holiday</span>
+                                  <span className="grid-card-notes">Weekend</span>
+                                </div>
+                              </td>
+                            );
+                          }
+                          
+                          if (rec) {
+                            const { time, notes } = parseRemarks(rec.remarks);
+                            if (rec.status === "present") {
+                              return (
+                                <td key={idx}>
+                                  <div className="grid-attendance-card present">
+                                    <span className="grid-card-status">Present</span>
+                                    <span className="grid-card-time">{time !== "—" ? time : "09:00"}</span>
+                                    {notes && notes !== "—" && (
+                                      <span className="grid-card-notes" title={notes}>{notes}</span>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            } else {
+                              return (
+                                <td key={idx}>
+                                  <div className="grid-attendance-card absent">
+                                    <span className="grid-card-status">Absent</span>
+                                    {notes && notes !== "—" && (
+                                      <span className="grid-card-notes" title={notes}>{notes}</span>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            }
+                          }
+                          
+                          return (
+                            <td key={idx}>
+                              <div className="grid-attendance-card none">
+                                <span className="grid-card-status">—</span>
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          /* Original history feed */
+          loading ? (
+            <p className="status-message">Loading audit logs...</p>
+          ) : Object.keys(groupedRecords).length > 0 ? (
+            <div className="audit-feed">
+              {Object.entries(groupedRecords).map(([dateStr, dayRecords]) => {
+                const presentCount = dayRecords.filter((r) => r.status === "present").length;
+                const absentCount = dayRecords.filter((r) => r.status === "absent").length;
+
+                return (
+                  <div key={dateStr} className="audit-date-card" style={{ padding: 0, overflow: "hidden" }}>
+                    <div className="audit-date-header">
+                      <div className="audit-date-title-wrapper" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span className="audit-calendar-icon" aria-hidden="true" style={{ display: "flex", alignItems: "center" }}>
+                          <Icon name="calendar" />
+                        </span>
+                        <h4>{formatDateHeader(dateStr)}</h4>
+                      </div>
+                      <div className="audit-date-stats">
+                        <span className="stats-badge present">{presentCount} Present</span>
+                        {absentCount > 0 && <span className="stats-badge absent">{absentCount} Absent</span>}
+                      </div>
+                    </div>
+                    <div className="audit-date-body" style={{ padding: "8px 0" }}>
+                      <div className="audit-log-list">
+                        {dayRecords.map((rec) => {
+                          const name = rec.faculty
+                            ? `${rec.faculty.first_name} ${rec.faculty.last_name || ""}`.trim()
+                            : "Faculty Member";
+                          const { time, notes } = parseRemarks(rec.remarks);
+
+                          return (
+                            <div key={rec.attendance_id} className="audit-log-item">
+                              <div className="audit-log-faculty-info" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <Avatar variant="profile" />
+                                <div className="audit-log-faculty-meta">
+                                  <span className="faculty-name" style={{ display: "block", fontSize: "14px", fontWeight: 600 }}>{name}</span>
+                                  <span className="faculty-code" style={{ fontSize: "11px", color: "var(--muted)" }}>{rec.faculty?.employee_code || "N/A"}</span>
+                                </div>
+                              </div>
+
+                              <div className="audit-log-status">
+                                <span className={`status-pill ${rec.status === "present" ? "present" : "absent"}`}>
+                                  {rec.status === "present" ? "Checked In" : "Absent"}
+                                </span>
+                              </div>
+
+                              <div className="audit-log-time" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                {rec.status === "present" ? (
+                                  <>
+                                    <span className="time-icon" aria-hidden="true" style={{ display: "flex", alignItems: "center" }}>
+                                      <Icon name="clock" />
+                                    </span>
+                                    <span className="time-value">{time}</span>
+                                  </>
+                                ) : (
+                                  <span className="time-value absent-time" style={{ color: "var(--muted)" }}>—</span>
+                                )}
+                              </div>
+
+                              <div className="audit-log-notes">
+                                <span className="notes-label" style={{ marginRight: "4px" }}>Notes:</span>
+                                <span className="notes-value">{notes}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="status-message">No check-in records found for this criteria.</p>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="status-message">No check-in records found for this criteria.</p>
+          )
         )}
 
         {status && <p className="status-message">{status}</p>}
@@ -1990,25 +2275,32 @@ export function FacultyManagementView() {
   const loadFaculty = useCallback(() => {
     setLoading(true);
     setStatus("");
-    apiRequest<{ results: ApiFaculty[] }>(`/faculty?status=${statusFilter}&limit=250`)
-      .then((res) => {
-        setFaculty(res.results);
+    
+    Promise.all([
+      apiRequest<{ results: ApiFaculty[] }>("/faculty?status=active&limit=250"),
+      apiRequest<{ results: ApiFaculty[] }>("/faculty?status=inactive&limit=250")
+    ])
+      .then(([activeRes, inactiveRes]) => {
+        const active = (activeRes.results || []).map(f => ({ ...f, status: "active" }));
+        const inactive = (inactiveRes.results || []).map(f => ({ ...f, status: "inactive" }));
+        setFaculty([...active, ...inactive]);
       })
       .catch((err) => {
         console.error("Failed to load faculty directory:", err);
         setStatus("Failed to load faculty directory.");
       })
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, []);
 
   useEffect(() => {
     loadFaculty();
   }, [loadFaculty]);
 
   const filteredFaculty = useMemo(() => {
+    const statusFiltered = faculty.filter(f => f.status === statusFilter);
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return faculty;
-    return faculty.filter((f) => {
+    if (!query) return statusFiltered;
+    return statusFiltered.filter((f) => {
       const code = (f.employee_code || "").toLowerCase();
       const name = `${f.first_name || ""} ${f.last_name || ""}`.toLowerCase();
       const desig = (f.designation || "").toLowerCase();
@@ -2022,7 +2314,7 @@ export function FacultyManagementView() {
         email.includes(query)
       );
     });
-  }, [faculty, searchQuery]);
+  }, [faculty, statusFilter, searchQuery]);
 
   function openAddDrawer() {
     setDrawerMode("add");
@@ -2112,9 +2404,58 @@ export function FacultyManagementView() {
     }
   }
 
+  const totalCount = faculty.length;
+  const activeCount = faculty.filter((f) => f.status === "active").length;
+  const inactiveCount = faculty.filter((f) => f.status === "inactive").length;
+
   return (
     <DashboardLayout title="Faculty Directory">
       <div className="attendance-page-content">
+        <div className="stat-card-row">
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Total Staff</span>
+              <div className="stat-card-icon-wrapper">
+                <Icon name="students" />
+              </div>
+            </div>
+            <div className="stat-card-body">
+              <span className="stat-card-value">{totalCount}</span>
+            </div>
+            <div className="stat-card-footer">Total registered faculty members</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Active Staff</span>
+              <div className="stat-card-icon-wrapper">
+                <Icon name="user" />
+              </div>
+            </div>
+            <div className="stat-card-body">
+              <span className="stat-card-value">{activeCount}</span>
+              <span className="stat-card-trend up">
+                {totalCount > 0 ? `${Math.round((activeCount / totalCount) * 100)}%` : "0%"}
+              </span>
+            </div>
+            <div className="stat-card-footer">Currently active personnel</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Inactive / Archived</span>
+              <div className="stat-card-icon-wrapper">
+                <Icon name="chart" />
+              </div>
+            </div>
+            <div className="stat-card-body">
+              <span className="stat-card-value">{inactiveCount}</span>
+              <span className="stat-card-trend neutral">
+                {totalCount > 0 ? `${Math.round((inactiveCount / totalCount) * 100)}%` : "0%"}
+              </span>
+            </div>
+            <div className="stat-card-footer">Exited or inactive profiles</div>
+          </div>
+        </div>
+
         <div className="audit-header-section" style={{ marginBottom: "20px" }}>
           <h3>Manage Faculty Directory</h3>
           <div className="audit-filters-container">
@@ -2382,25 +2723,32 @@ export function StudentManagementView() {
   const loadStudents = useCallback(() => {
     setLoading(true);
     setStatus("");
-    apiRequest<{ students: ApiStudent[] }>(`/students?status=${statusFilter}`)
-      .then((res) => {
-        setStudents(res.students || []);
+    
+    Promise.all([
+      apiRequest<{ students: ApiStudent[] }>("/students?status=active"),
+      apiRequest<{ students: ApiStudent[] }>("/students?status=inactive")
+    ])
+      .then(([activeRes, inactiveRes]) => {
+        const active = (activeRes.students || []).map(s => ({ ...s, status: "active" }));
+        const inactive = (inactiveRes.students || []).map(s => ({ ...s, status: "inactive" }));
+        setStudents([...active, ...inactive]);
       })
       .catch((err) => {
         console.error("Failed to load students directory:", err);
         setStatus("Failed to load students directory.");
       })
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, []);
 
   useEffect(() => {
     loadStudents();
   }, [loadStudents]);
 
   const filteredStudents = useMemo(() => {
+    const statusFiltered = students.filter(s => s.status === statusFilter);
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return students;
-    return students.filter((s) => {
+    if (!query) return statusFiltered;
+    return statusFiltered.filter((s) => {
       const adNo = (s.admission_no || "").toLowerCase();
       const name = `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase();
       const className = (s.class_name || "").toLowerCase();
@@ -2416,7 +2764,7 @@ export function StudentManagementView() {
         pEmail.includes(query)
       );
     });
-  }, [students, searchQuery]);
+  }, [students, statusFilter, searchQuery]);
 
   async function handleToggleStatus(student: ApiStudent) {
     const newStatus = student.status === "active" ? "inactive" : "active";
@@ -2490,9 +2838,58 @@ export function StudentManagementView() {
     document.body.removeChild(link);
   }
 
+  const totalCount = students.length;
+  const activeCount = students.filter((s) => s.status === "active").length;
+  const inactiveCount = students.filter((s) => s.status === "inactive").length;
+
   return (
     <DashboardLayout title="Student Directory">
       <div className="attendance-page-content">
+        <div className="stat-card-row">
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Total Registered</span>
+              <div className="stat-card-icon-wrapper">
+                <Icon name="students" />
+              </div>
+            </div>
+            <div className="stat-card-body">
+              <span className="stat-card-value">{totalCount}</span>
+            </div>
+            <div className="stat-card-footer">Total enrolled students</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Active Students</span>
+              <div className="stat-card-icon-wrapper">
+                <Icon name="user" />
+              </div>
+            </div>
+            <div className="stat-card-body">
+              <span className="stat-card-value">{activeCount}</span>
+              <span className="stat-card-trend up">
+                {totalCount > 0 ? `${Math.round((activeCount / totalCount) * 100)}%` : "0%"}
+              </span>
+            </div>
+            <div className="stat-card-footer">Currently active enrollment</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-title">Inactive / Archived</span>
+              <div className="stat-card-icon-wrapper">
+                <Icon name="chart" />
+              </div>
+            </div>
+            <div className="stat-card-body">
+              <span className="stat-card-value">{inactiveCount}</span>
+              <span className="stat-card-trend neutral">
+                {totalCount > 0 ? `${Math.round((inactiveCount / totalCount) * 100)}%` : "0%"}
+              </span>
+            </div>
+            <div className="stat-card-footer">Withdrawn or inactive profiles</div>
+          </div>
+        </div>
+
         <div className="audit-header-section" style={{ marginBottom: "20px", display: "flex", flexDirection: "column", gap: "16px", alignItems: "stretch" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3>Manage Student Directory</h3>
@@ -2556,88 +2953,52 @@ export function StudentManagementView() {
           <p className="status-message">Loading student directory...</p>
         ) : filteredStudents.length > 0 ? (
           viewMode === "list" ? (
-            <div className="attendance-table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Class</th>
-                    <th>Parent / Guardian</th>
-                    <th>Contact Info</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStudents.map((student) => {
-                    const name = [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student";
-                    return (
-                      <tr key={student.student_id}>
-                        <td>
-                          <div className="student-profile-cell">
-                            <Avatar variant="student" src={student.photo_url} />
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                              <span style={{ fontWeight: 600, color: "var(--ink)" }}>{name}</span>
-                              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 500 }}>
-                                No: {student.admission_no || "N/A"}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 500 }}>{student.class_name || "Unassigned"}</span>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 500 }}>{student.parent_name || "—"}</span>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {student.parent_phone && (
-                              <span style={{ fontSize: "13px", fontWeight: 500 }}>{student.parent_phone}</span>
-                            )}
-                            {student.parent_email && (
-                              <span style={{ fontSize: "11px", color: "var(--muted)" }}>{student.parent_email}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`status-pill ${student.status === "active" ? "present" : "absent"}`}>
-                            {student.status === "active" ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                            <button
-                              className="secondary-button"
-                              type="button"
-                              onClick={() => handleViewDetails(student)}
-                              style={{ minHeight: "32px", padding: "0 14px", fontSize: "10px", borderRadius: "9999px" }}
-                            >
-                              Details
-                            </button>
-                            <button
-                              className="row-submit-button"
-                              type="button"
-                              onClick={() => handleToggleStatus(student)}
-                              style={{
-                                minHeight: "32px",
-                                padding: "0 14px",
-                                fontSize: "10px",
-                                borderRadius: "9999px",
-                                ...(student.status === "active"
-                                  ? { background: "#fee2e2", color: "#b91c1c", border: "1px solid #fee2e2" }
-                                  : { background: "#dcfce7", color: "#15803d", border: "1px solid #dcfce7" }),
-                              }}
-                            >
-                              {student.status === "active" ? "Deactivate" : "Activate"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="student-grid-directory">
+              {filteredStudents.map((student) => {
+                const name = [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student";
+                return (
+                  <div key={student.student_id} className="student-card-directory" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '24px' }}>
+                    <div className="student-card-avatar-wrapper" style={{ marginBottom: '12px' }}>
+                      <Avatar variant="student" src={student.photo_url} />
+                    </div>
+                    <div className="student-card-name" style={{ marginBottom: '8px', fontSize: '18px' }}>{name}</div>
+                    <div style={{ marginBottom: '20px' }}>
+                      <span className={`status-pill ${student.status === 'active' ? 'present' : 'absent'}`}>
+                        {student.status === 'active' ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="student-card-actions" style={{ display: 'flex', gap: '8px', width: '100%', marginTop: 'auto' }}>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => handleViewDetails(student)}
+                        style={{ flex: 1, minHeight: '36px', padding: '0 14px', fontSize: '10px', borderRadius: '9999px' }}
+                      >
+                        Details
+                      </button>
+                      <button
+                        className="row-submit-button"
+                        type="button"
+                        onClick={() => handleToggleStatus(student)}
+                        style={{
+                          flex: 1,
+                          minHeight: '36px',
+                          padding: '0 14px',
+                          fontSize: '10px',
+                          borderRadius: '9999px',
+                          ...(student.status === 'active'
+                            ? { background: '#fee2e2', color: '#b91c1c', border: '1px solid #fee2e2' }
+                            : { background: '#dcfce7', color: '#15803d', border: '1px solid #dcfce7' }),
+                        }}
+                      >
+                        {student.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="attendance-table-container" style={{ overflowX: "auto" }}>
