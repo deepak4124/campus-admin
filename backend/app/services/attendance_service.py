@@ -166,3 +166,27 @@ class AttendanceService:
         if not response.data:
             raise RuntimeError("Supabase write returned no data")
         return response.data[0]
+
+    def list_holidays(self) -> List[Dict[str, Any]]:
+        response = (
+            self.supabase.table("holidays")
+            .select("*")
+            .order("holiday_date", desc=False)
+            .execute()
+        )
+        return response.data or []
+
+    def save_holiday(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        response = (
+            self.supabase.table("holidays")
+            .insert({
+                "holiday_date": payload.get("holiday_date"),
+                "name": payload.get("name")
+            })
+        )
+        return response.data[0] if response.data else {}
+
+    def delete_holiday(self, holiday_id: str) -> Dict[str, Any]:
+        self.supabase.table("holidays").eq("holiday_id", holiday_id).delete()
+        return {"status": "deleted", "holiday_id": holiday_id}
+

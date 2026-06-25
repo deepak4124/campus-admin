@@ -138,13 +138,76 @@ const navSections = [
 
 export function DashboardLayout({ children, title, className = "" }: { children: ReactNode; title?: string; className?: string }) {
   const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const sessionStartStr = localStorage.getItem("supabase_session_start");
+    if (!sessionStartStr) return;
+
+    const sessionStart = parseInt(sessionStartStr, 10);
+    const ONE_HOUR = 60 * 60 * 1000;
+
+    const checkSession = () => {
+      const elapsed = Date.now() - sessionStart;
+      if (elapsed >= ONE_HOUR) {
+        logoutAdmin();
+      }
+    };
+
+    checkSession();
+    const interval = setInterval(checkSession, 15000); // Check every 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Escape key listener to close drawer
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSidebarOpen]);
+
+  // Body scroll lock when drawer is open
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isSidebarOpen]);
   
   return (
     <section className="fee-shell" aria-label={title || "Dashboard"}>
-      <aside className="fee-sidebar">
-        <div className="fee-brand">
-          <h1 className="brand-title">Blooming Daffodils</h1>
-          <p className="brand-subtitle">Administrative Portal</p>
+      {isSidebarOpen && (
+        <div 
+          className="sidebar-overlay" 
+          onClick={() => setIsSidebarOpen(false)} 
+          aria-hidden="true"
+        />
+      )}
+
+      <aside className={`fee-sidebar ${isSidebarOpen ? "open" : ""}`}>
+        <div className="fee-brand" style={{ position: "relative", display: "flex", flexDirection: "column", gap: "16px", marginBottom: "8px" }}>
+          <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover" }} />
+          <div>
+            <h1 className="brand-title">Blooming Daffodils</h1>
+            <p className="brand-subtitle">Administrative Portal</p>
+          </div>
+          <button 
+            className="sidebar-close-btn" 
+            onClick={() => setIsSidebarOpen(false)} 
+            aria-label="Close menu"
+            type="button"
+          >
+            ✕
+          </button>
         </div>
 
         <nav className="fee-nav" aria-label="Primary navigation">
@@ -155,7 +218,12 @@ export function DashboardLayout({ children, title, className = "" }: { children:
                 {section.items.map((item) => {
                   const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
                   return (
-                    <a className={isActive ? "active" : ""} href={item.href} key={item.label}>
+                    <a 
+                      className={isActive ? "active" : ""} 
+                      href={item.href} 
+                      key={item.label}
+                      onClick={() => setIsSidebarOpen(false)}
+                    >
                       <Icon name={item.icon} />
                       <span>{item.label}</span>
                     </a>
@@ -169,6 +237,14 @@ export function DashboardLayout({ children, title, className = "" }: { children:
 
       <div className="fee-main" id="dashboard-main">
         <header className="fee-topbar">
+          <button 
+            className="hamburger-menu-btn" 
+            onClick={() => setIsSidebarOpen(true)} 
+            aria-label="Open menu"
+            type="button"
+          >
+            <Icon name="menu" />
+          </button>
           <h2>{title || "Dashboard"}</h2>
           <div className="top-actions" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <button className="icon-button" aria-label="Notifications" type="button">
@@ -861,11 +937,388 @@ export function AdminPlaceholderView({ title, description, actionLabel, endpoint
   );
 }
 
+export function DashboardView() {
+  const [students, setStudents] = useState<ApiStudent[]>([]);
+  const [faculty, setFaculty] = useState<ApiFaculty[]>([]);
+  const [studentLogs, setStudentLogs] = useState<any[]>([]);
+  const [facultyLogs, setFacultyLogs] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Holiday form states
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [newHolidayName, setNewHolidayName] = useState("");
+  const [submittingHoliday, setSubmittingHoliday] = useState(false);
+  const [holidayStatus, setHolidayStatus] = useState("");
+
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const currentMonthStr = useMemo(() => new Date().toISOString().substring(0, 7), []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [studRes, facRes, studLogsRes, facLogsRes, holidaysRes] = await Promise.all([
+        apiRequest<{ students: ApiStudent[] }>("/students"),
+        apiRequest<{ results: ApiFaculty[] }>("/faculty?limit=200"),
+        apiRequest<any[]>("/attendance/students"),
+        apiRequest<any[]>("/attendance/faculty"),
+        apiRequest<any[]>("/attendance/holidays")
+      ]);
+
+      setStudents(studRes.students || []);
+      setFaculty(facRes.results || []);
+      setStudentLogs(studLogsRes || []);
+      setFacultyLogs(facLogsRes || []);
+      setHolidays(holidaysRes || []);
+    } catch (error) {
+      console.error("Failed to load dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Calculations
+  const todayStudentStats = useMemo(() => {
+    const activeTotal = students.length;
+    const present = studentLogs.filter((r) => r.attendance_date === todayStr && r.status === "present").length;
+    const absent = studentLogs.filter((r) => r.attendance_date === todayStr && r.status === "absent").length;
+    return { present, total: activeTotal, absent };
+  }, [students, studentLogs, todayStr]);
+
+  const todayFacultyStats = useMemo(() => {
+    const activeTotal = faculty.length;
+    const present = facultyLogs.filter((r) => r.attendance_date === todayStr && r.status === "present").length;
+    const absent = facultyLogs.filter((r) => r.attendance_date === todayStr && r.status === "absent").length;
+    return { present, total: activeTotal, absent };
+  }, [faculty, facultyLogs, todayStr]);
+
+  const monthlyStudentRate = useMemo(() => {
+    const monthLogs = studentLogs.filter((r) => r.attendance_date.startsWith(currentMonthStr));
+    if (monthLogs.length === 0) return 100;
+    const present = monthLogs.filter((r) => r.status === "present").length;
+    return Math.round((present / monthLogs.length) * 100);
+  }, [studentLogs, currentMonthStr]);
+
+  const monthlyFacultyRate = useMemo(() => {
+    const monthLogs = facultyLogs.filter((r) => r.attendance_date.startsWith(currentMonthStr));
+    if (monthLogs.length === 0) return 100;
+    const present = monthLogs.filter((r) => r.status === "present").length;
+    return Math.round((present / monthLogs.length) * 100);
+  }, [facultyLogs, currentMonthStr]);
+
+  const flaggedStudents = useMemo(() => {
+    const list: { name: string; roll: string; rate: number }[] = [];
+    students.forEach((student) => {
+      const studentMonthLogs = studentLogs.filter(
+        (r) => r.student_id === student.student_id && r.attendance_date.startsWith(currentMonthStr)
+      );
+      if (studentMonthLogs.length > 0) {
+        const presentCount = studentMonthLogs.filter((r) => r.status === "present").length;
+        const rate = Math.round((presentCount / studentMonthLogs.length) * 100);
+        if (rate < 90) {
+          list.push({
+            name: [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student",
+            roll: student.admission_no || "N/A",
+            rate
+          });
+        }
+      }
+    });
+    return list.sort((a, b) => a.rate - b.rate).slice(0, 5);
+  }, [students, studentLogs, currentMonthStr]);
+
+  const upcomingHolidays = useMemo(() => {
+    return holidays
+      .filter((h) => h.holiday_date >= todayStr)
+      .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
+      .slice(0, 5);
+  }, [holidays, todayStr]);
+
+  async function handleAddHoliday(e: FormEvent) {
+    e.preventDefault();
+    if (!newHolidayDate || !newHolidayName) return;
+
+    setSubmittingHoliday(true);
+    setHolidayStatus("");
+
+    try {
+      await apiRequest("/attendance/holidays", {
+        method: "POST",
+        body: JSON.stringify({
+          holiday_date: newHolidayDate,
+          name: newHolidayName
+        })
+      });
+      setHolidayStatus("Holiday added successfully!");
+      setNewHolidayDate("");
+      setNewHolidayName("");
+      loadData();
+    } catch (error) {
+      console.error(error);
+      setHolidayStatus(error instanceof Error ? error.message : "Failed to add holiday.");
+    } finally {
+      setSubmittingHoliday(false);
+    }
+  }
+
+  async function handleDeleteHoliday(holidayId: string) {
+    if (!confirm("Are you sure you want to delete this holiday?")) return;
+    try {
+      await apiRequest(`/attendance/holidays/${holidayId}`, { method: "DELETE" });
+      loadData();
+    } catch (error) {
+      console.error("Failed to delete holiday:", error);
+    }
+  }
+
+  function formatHolidayDate(dateStr: string) {
+    const [year, month, day] = dateStr.split("-");
+    const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  return (
+    <DashboardLayout title="Dashboard">
+      <div className="attendance-page-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        {loading ? (
+          <p className="status-message">Loading dashboard metrics...</p>
+        ) : (
+          <>
+            {/* Metric Cards Row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
+              {/* Card 1: Today's Student Presence */}
+              <div className="audit-date-card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
+                  Today's Student Presence
+                </span>
+                <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--ink)" }}>
+                  {todayStudentStats.present} / {todayStudentStats.total}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  {todayStudentStats.total - todayStudentStats.present - todayStudentStats.absent} unmarked today
+                </span>
+              </div>
+
+              {/* Card 2: Today's Faculty Presence */}
+              <div className="audit-date-card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
+                  Today's Faculty Check-ins
+                </span>
+                <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--ink)" }}>
+                  {todayFacultyStats.present} / {todayFacultyStats.total}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  {todayFacultyStats.total - todayFacultyStats.present - todayFacultyStats.absent} unmarked today
+                </span>
+              </div>
+
+              {/* Card 3: Monthly Student Attendance Rate */}
+              <div className="audit-date-card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
+                  Student Attendance Rate
+                </span>
+                <span style={{ fontSize: "28px", fontWeight: 800, color: "#16a34a" }}>
+                  {monthlyStudentRate}%
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  Average for this month
+                </span>
+              </div>
+
+              {/* Card 4: Monthly Faculty Attendance Rate */}
+              <div className="audit-date-card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
+                  Faculty Attendance Rate
+                </span>
+                <span style={{ fontSize: "28px", fontWeight: 800, color: "#16a34a" }}>
+                  {monthlyFacultyRate}%
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  Average for this month
+                </span>
+              </div>
+            </div>
+
+            {/* Two-Column Details Section */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "24px", alignItems: "start" }}>
+              {/* Column 1: Custom Holiday Planner */}
+              <div className="audit-date-card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Custom Holiday Planner</h3>
+                
+                <form onSubmit={handleAddHoliday} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div className="form-field">
+                    <span className="field-label">Holiday Date</span>
+                    <input
+                      type="date"
+                      value={newHolidayDate}
+                      onChange={(e) => setNewHolidayDate(e.target.value)}
+                      required={true}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <span className="field-label">Holiday Name</span>
+                    <input
+                      type="text"
+                      placeholder="e.g. Independence Day"
+                      value={newHolidayName}
+                      onChange={(e) => setNewHolidayName(e.target.value)}
+                      required={true}
+                    />
+                  </div>
+                  <button
+                    className="primary-button"
+                    type="submit"
+                    disabled={submittingHoliday}
+                    style={{ minHeight: "38px" }}
+                  >
+                    {submittingHoliday ? "Adding..." : "Add Holiday"}
+                  </button>
+                  {holidayStatus && <p className="form-status" style={{ margin: 0 }}>{holidayStatus}</p>}
+                </form>
+
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
+                  <h4 style={{ margin: "0 0 12px 0", fontSize: "13px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    Registered Holidays
+                  </h4>
+                  {holidays.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>
+                      No custom holidays registered.
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "220px", overflowY: "auto" }}>
+                      {holidays.map((h) => (
+                        <div
+                          key={h.holiday_id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "8px 12px",
+                            background: "var(--tint)",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-soft)"
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontSize: "13px", fontWeight: 600, display: "block" }}>{h.name}</span>
+                            <span style={{ fontSize: "11px", color: "var(--muted)" }}>{formatHolidayDate(h.holiday_date)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteHoliday(h.holiday_id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#dc2626",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              padding: "4px"
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 2: Flagged Students & Upcoming Holidays */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                {/* Low Attendance Alert */}
+                <div className="audit-date-card" style={{ padding: "24px" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 700, color: "#b91c1c", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    Attendance Alert (&lt;90% rate)
+                  </h3>
+                  {flaggedStudents.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: "13px", color: "#15803d", fontStyle: "italic", fontWeight: 500 }}>
+                      ✓ All students maintain &gt;90% attendance this month.
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {flaggedStudents.map((s, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "10px 14px",
+                            background: "#fff5f5",
+                            borderRadius: "8px",
+                            border: "1px solid #fee2e2"
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontSize: "13px", fontWeight: 600, color: "#991b1b" }}>{s.name}</span>
+                            <span style={{ fontSize: "11px", color: "#b91c1c", display: "block" }}>Roll: {s.roll}</span>
+                          </div>
+                          <span style={{ fontSize: "13px", fontWeight: 700, color: "#b91c1c" }}>
+                            {s.rate}% attendance
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Upcoming Holidays */}
+                <div className="audit-date-card" style={{ padding: "24px" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 700 }}>Upcoming Holidays</h3>
+                  {upcomingHolidays.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>
+                      No upcoming holidays scheduled.
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {upcomingHolidays.map((h) => (
+                        <div
+                          key={h.holiday_id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "10px 14px",
+                            background: "var(--tint)",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border-soft)"
+                          }}
+                        >
+                          <span style={{ fontSize: "13px", fontWeight: 600 }}>{h.name}</span>
+                          <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 500 }}>
+                            {formatHolidayDate(h.holiday_date)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}
+
+
 function AdmissionTopBar() {
   return (
     <header className="admission-top-bar">
       <div className="brand-logo">
-        <img src="/logo.jpg" alt="Blooming Daffodils Logo" className="school-logo" />
+        <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" className="school-logo" />
         <span>Blooming Daffodils</span>
       </div>
       <a href="/login" className="signin-btn">
@@ -1264,6 +1717,7 @@ export function StudentAttendanceView() {
   const [activeTab, setActiveTab] = useState<"mark" | "sheet">("mark");
   const [sheetMode, setSheetMode] = useState<"weekly" | "monthly">("weekly");
   const [allAttendanceRecords, setAllAttendanceRecords] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
@@ -1339,12 +1793,16 @@ export function StudentAttendanceView() {
 
   const loadAttendanceRecords = useCallback(() => {
     setLoadingRecords(true);
-    apiRequest<any[]>("/attendance/students")
-      .then((data) => {
-        setAllAttendanceRecords(data || []);
+    Promise.all([
+      apiRequest<any[]>("/attendance/students"),
+      apiRequest<any[]>("/attendance/holidays")
+    ])
+      .then(([logs, holidaysList]) => {
+        setAllAttendanceRecords(logs || []);
+        setHolidays(holidaysList || []);
       })
       .catch((err) => {
-        console.error("Failed to load student attendance logs:", err);
+        console.error("Failed to load student attendance logs/holidays:", err);
       })
       .finally(() => setLoadingRecords(false));
   }, []);
@@ -1375,24 +1833,25 @@ export function StudentAttendanceView() {
     let weekendCount = 0;
 
     weekDays.forEach((day) => {
-      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-      if (isWeekend) {
-        weekendCount += filteredStudents.length;
-      }
-      
       const dateStr = day.toISOString().split("T")[0];
-      filteredStudents.forEach((stud) => {
-        const rec = allAttendanceRecords.find(
-          (r) => r.student_id === stud.student_id && r.attendance_date === dateStr
-        );
-        if (rec) {
-          if (rec.status === "present") {
-            presentCount++;
-          } else if (rec.status === "absent") {
-            absentCount++;
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
+      if (isWeekend || isHoliday) {
+        weekendCount += filteredStudents.length;
+      } else {
+        filteredStudents.forEach((stud) => {
+          const rec = allAttendanceRecords.find(
+            (r) => r.student_id === stud.student_id && r.attendance_date === dateStr
+          );
+          if (rec) {
+            if (rec.status === "present") {
+              presentCount++;
+            } else if (rec.status === "absent") {
+              absentCount++;
+            }
           }
-        }
-      });
+        });
+      }
     });
 
     const total = presentCount + absentCount + weekendCount || 1;
@@ -1404,7 +1863,7 @@ export function StudentAttendanceView() {
       absentCount,
       weekendCount
     };
-  }, [weekDays, filteredStudents, allAttendanceRecords]);
+  }, [weekDays, filteredStudents, allAttendanceRecords, holidays]);
 
   const monthlyStats = useMemo(() => {
     let presentCount = 0;
@@ -1412,24 +1871,25 @@ export function StudentAttendanceView() {
     let weekendCount = 0;
 
     daysInMonth.forEach((day) => {
-      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-      if (isWeekend) {
-        weekendCount += filteredStudents.length;
-      }
-      
       const dateStr = day.toISOString().split("T")[0];
-      filteredStudents.forEach((stud) => {
-        const rec = allAttendanceRecords.find(
-          (r) => r.student_id === stud.student_id && r.attendance_date === dateStr
-        );
-        if (rec) {
-          if (rec.status === "present") {
-            presentCount++;
-          } else if (rec.status === "absent") {
-            absentCount++;
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
+      if (isWeekend || isHoliday) {
+        weekendCount += filteredStudents.length;
+      } else {
+        filteredStudents.forEach((stud) => {
+          const rec = allAttendanceRecords.find(
+            (r) => r.student_id === stud.student_id && r.attendance_date === dateStr
+          );
+          if (rec) {
+            if (rec.status === "present") {
+              presentCount++;
+            } else if (rec.status === "absent") {
+              absentCount++;
+            }
           }
-        }
-      });
+        });
+      }
     });
 
     const total = presentCount + absentCount + weekendCount || 1;
@@ -1438,7 +1898,7 @@ export function StudentAttendanceView() {
       absentPct: Math.round((absentCount / total) * 100),
       weekendPct: Math.round((weekendCount / total) * 100),
     };
-  }, [daysInMonth, filteredStudents, allAttendanceRecords]);
+  }, [daysInMonth, filteredStudents, allAttendanceRecords, holidays]);
 
   function handleStatusChange(studentId: string, newStatus: "present" | "absent") {
     setRecords((prev) => ({
@@ -1757,12 +2217,13 @@ export function StudentAttendanceView() {
                                   (r) => r.student_id === student.student_id && r.attendance_date === dateStr
                                 );
                                 
-                                if (isWeekend) {
+                                const customHoliday = holidays.find((h) => h.holiday_date === dateStr);
+                                if (isWeekend || customHoliday) {
                                   return (
                                     <td key={idx}>
                                       <div className="grid-attendance-card holiday">
                                         <span className="grid-card-status">Holiday</span>
-                                        <span className="grid-card-notes">Weekend</span>
+                                        <span className="grid-card-notes">{customHoliday ? customHoliday.name : "Weekend"}</span>
                                       </div>
                                     </td>
                                   );
@@ -1873,10 +2334,11 @@ export function StudentAttendanceView() {
                                   (r) => r.student_id === student.student_id && r.attendance_date === dateStr
                                 );
                                 
-                                if (isWeekend) {
+                                const customHoliday = holidays.find((h) => h.holiday_date === dateStr);
+                                if (isWeekend || customHoliday) {
                                   return (
                                     <td key={idx} style={{ padding: "4px 2px" }}>
-                                      <div className="grid-attendance-dot holiday" title={`${dateStr}: Weekend`}>
+                                      <div className="grid-attendance-dot holiday" title={`${dateStr}: ${customHoliday ? customHoliday.name : "Weekend"}`}>
                                         H
                                       </div>
                                     </td>
@@ -1966,6 +2428,7 @@ export function FacultyAttendanceView() {
   const [sheetMode, setSheetMode] = useState<"weekly" | "monthly" | "feed">("weekly");
   const [allAttendanceRecords, setAllAttendanceRecords] = useState<AuditFacultyRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
@@ -2020,12 +2483,16 @@ export function FacultyAttendanceView() {
 
   const loadAttendanceRecords = useCallback(() => {
     setLoadingRecords(true);
-    apiRequest<AuditFacultyRecord[]>("/attendance/faculty")
-      .then((data) => {
+    Promise.all([
+      apiRequest<AuditFacultyRecord[]>("/attendance/faculty"),
+      apiRequest<any[]>("/attendance/holidays")
+    ])
+      .then(([data, holidaysList]) => {
         setAllAttendanceRecords(data || []);
+        setHolidays(holidaysList || []);
       })
       .catch((err) => {
-        console.error("Failed to load audit logs:", err);
+        console.error("Failed to load audit logs/holidays:", err);
       })
       .finally(() => setLoadingRecords(false));
   }, []);
@@ -2091,24 +2558,25 @@ export function FacultyAttendanceView() {
     let weekendCount = 0;
 
     weekDays.forEach((day) => {
-      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-      if (isWeekend) {
-        weekendCount += filteredFaculty.length;
-      }
-      
       const dateStr = day.toISOString().split("T")[0];
-      filteredFaculty.forEach((fac) => {
-        const rec = allAttendanceRecords.find(
-          (r) => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr
-        );
-        if (rec) {
-          if (rec.status === "present") {
-            presentCount++;
-          } else if (rec.status === "absent") {
-            absentCount++;
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
+      if (isWeekend || isHoliday) {
+        weekendCount += filteredFaculty.length;
+      } else {
+        filteredFaculty.forEach((fac) => {
+          const rec = allAttendanceRecords.find(
+            (r) => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr
+          );
+          if (rec) {
+            if (rec.status === "present") {
+              presentCount++;
+            } else if (rec.status === "absent") {
+              absentCount++;
+            }
           }
-        }
-      });
+        });
+      }
     });
 
     const total = presentCount + absentCount + weekendCount || 1;
@@ -2117,7 +2585,7 @@ export function FacultyAttendanceView() {
       absentPct: Math.round((absentCount / total) * 100),
       weekendPct: Math.round((weekendCount / total) * 100),
     };
-  }, [weekDays, filteredFaculty, allAttendanceRecords]);
+  }, [weekDays, filteredFaculty, allAttendanceRecords, holidays]);
 
   const monthlyStats = useMemo(() => {
     let presentCount = 0;
@@ -2125,24 +2593,25 @@ export function FacultyAttendanceView() {
     let weekendCount = 0;
 
     daysInMonth.forEach((day) => {
-      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-      if (isWeekend) {
-        weekendCount += filteredFaculty.length;
-      }
-      
       const dateStr = day.toISOString().split("T")[0];
-      filteredFaculty.forEach((fac) => {
-        const rec = allAttendanceRecords.find(
-          (r) => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr
-        );
-        if (rec) {
-          if (rec.status === "present") {
-            presentCount++;
-          } else if (rec.status === "absent") {
-            absentCount++;
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
+      if (isWeekend || isHoliday) {
+        weekendCount += filteredFaculty.length;
+      } else {
+        filteredFaculty.forEach((fac) => {
+          const rec = allAttendanceRecords.find(
+            (r) => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr
+          );
+          if (rec) {
+            if (rec.status === "present") {
+              presentCount++;
+            } else if (rec.status === "absent") {
+              absentCount++;
+            }
           }
-        }
-      });
+        });
+      }
     });
 
     const total = presentCount + absentCount + weekendCount || 1;
@@ -2151,7 +2620,7 @@ export function FacultyAttendanceView() {
       absentPct: Math.round((absentCount / total) * 100),
       weekendPct: Math.round((weekendCount / total) * 100),
     };
-  }, [daysInMonth, filteredFaculty, allAttendanceRecords]);
+  }, [daysInMonth, filteredFaculty, allAttendanceRecords, holidays]);
 
   const filteredFeedRecords = useMemo(() => {
     return allAttendanceRecords.filter((rec) => {
@@ -2659,12 +3128,13 @@ export function FacultyAttendanceView() {
                                   (r) => r.faculty_id === member.faculty_id && r.attendance_date === dateStr
                                 );
                                 
-                                if (isWeekend) {
+                                const customHoliday = holidays.find((h) => h.holiday_date === dateStr);
+                                if (isWeekend || customHoliday) {
                                   return (
                                     <td key={idx}>
                                       <div className="grid-attendance-card holiday">
                                         <span className="grid-card-status">Holiday</span>
-                                        <span className="grid-card-notes">Weekend</span>
+                                        <span className="grid-card-notes">{customHoliday ? customHoliday.name : "Weekend"}</span>
                                       </div>
                                     </td>
                                   );
@@ -2776,10 +3246,11 @@ export function FacultyAttendanceView() {
                                   (r) => r.faculty_id === member.faculty_id && r.attendance_date === dateStr
                                 );
                                 
-                                if (isWeekend) {
+                                const customHoliday = holidays.find((h) => h.holiday_date === dateStr);
+                                if (isWeekend || customHoliday) {
                                   return (
                                     <td key={idx} style={{ padding: "4px 2px" }}>
-                                      <div className="grid-attendance-dot holiday" title={`${dateStr}: Weekend`}>
+                                      <div className="grid-attendance-dot holiday" title={`${dateStr}: ${customHoliday ? customHoliday.name : "Weekend"}`}>
                                         H
                                       </div>
                                     </td>

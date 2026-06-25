@@ -229,7 +229,6 @@ class DirectoryService:
         response = (
             self.supabase.table("faculty")
             .insert(data)
-            .execute()
         )
         return self._first_row(response.data)
 
