@@ -2404,3 +2404,92 @@ tr:last-child td {
   }
 }
 
+.grid-profile-cell .avatar {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+/* Sub-tabs design for visual hierarchy */
+.sub-tabs {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sub-tab-btn {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--muted);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sub-tab-btn:hover {
+  color: var(--ink);
+  background: var(--tint);
+  border-color: var(--border-soft);
+}
+
+.sub-tab-btn.active {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+/* Color-coded monthly attendance dots */
+.grid-attendance-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin: 0 auto;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+  user-select: none;
+}
+
+.grid-attendance-dot.present {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.grid-attendance-dot.absent {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.grid-attendance-dot.holiday {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.grid-attendance-dot.none {
+  background: #fafafa;
+  color: #a3a3a3;
+  border: 1px solid #e5e5e5;
+}
+
+.grid-attendance-dot:hover {
+  transform: scale(1.12);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+

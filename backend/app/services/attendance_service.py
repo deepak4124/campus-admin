@@ -101,6 +101,15 @@ class AttendanceService:
         )
         return response.data or []
 
+    def list_student_attendance(self) -> List[Dict[str, Any]]:
+        response = (
+            self.supabase.table("student_attendance")
+            .select("*, students(first_name, last_name, admission_no)")
+            .order("attendance_date", desc=True)
+            .execute()
+        )
+        return response.data or []
+
     def _save_attendance_row(
         self,
         table: str,

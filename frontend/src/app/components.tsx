@@ -124,8 +124,7 @@ const navSections = [
     title: "Attendance & Audits",
     items: [
       { label: "Student Attendance", href: "/student-attendance", icon: "calendar" as const },
-      { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" as const },
-      { label: "Check-in Audit", href: "/check-in-audit", icon: "chart" as const }
+      { label: "Faculty Attendance", href: "/faculty-attendance", icon: "id" as const }
     ]
   },
   {
@@ -1261,12 +1260,70 @@ export function StudentAttendanceView() {
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  // Weekly/Monthly Grid & Tab states
+  const [activeTab, setActiveTab] = useState<"mark" | "sheet">("mark");
+  const [sheetMode, setSheetMode] = useState<"weekly" | "monthly">("weekly");
+  const [allAttendanceRecords, setAllAttendanceRecords] = useState<any[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(today.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  const weekDays = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(currentWeekStart);
+      d.setDate(currentWeekStart.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentWeekStart]);
+
+  const weekRangeLabel = useMemo(() => {
+    const start = weekDays[0];
+    const end = weekDays[6];
+    const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+    return `${start.toLocaleDateString("en-US", opt)} - ${end.toLocaleDateString("en-US", opt)}`;
+  }, [weekDays]);
+
+  function changeWeek(offset: number) {
+    setCurrentWeekStart((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + offset * 7);
+      return next;
+    });
+  }
+
+  const daysInMonth = useMemo(() => {
+    if (!selectedMonth) return [];
+    const [yearStr, monthStr] = selectedMonth.split("-");
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10) - 1; // 0-indexed
+    const date = new Date(year, month, 1);
+    const days = [];
+    while (date.getMonth() === month) {
+      days.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  }, [selectedMonth]);
+
+  const loadStudents = useCallback(() => {
     setLoadingStudents(true);
     setStatus("");
     apiRequest<{ students: ApiStudent[] }>("/students")
       .then((res) => {
-        setStudents(res.students);
+        setStudents(res.students || []);
         const initialRecords: Record<string, { status: "present" | "absent"; remarks: string }> = {};
         res.students.forEach((student) => {
           initialRecords[student.student_id] = { status: "present", remarks: "" };
@@ -1279,6 +1336,109 @@ export function StudentAttendanceView() {
       })
       .finally(() => setLoadingStudents(false));
   }, []);
+
+  const loadAttendanceRecords = useCallback(() => {
+    setLoadingRecords(true);
+    apiRequest<any[]>("/attendance/students")
+      .then((data) => {
+        setAllAttendanceRecords(data || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load student attendance logs:", err);
+      })
+      .finally(() => setLoadingRecords(false));
+  }, []);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
+
+  useEffect(() => {
+    if (activeTab === "sheet") {
+      loadAttendanceRecords();
+    }
+  }, [activeTab, loadAttendanceRecords]);
+
+  const filteredStudents = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return students;
+    return students.filter((s) => {
+      const name = studentName(s).toLowerCase();
+      const roll = (s.admission_no || "").toLowerCase();
+      return name.includes(query) || roll.includes(query);
+    });
+  }, [students, searchQuery]);
+
+  const attendanceStats = useMemo(() => {
+    let presentCount = 0;
+    let absentCount = 0;
+    let weekendCount = 0;
+
+    weekDays.forEach((day) => {
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      if (isWeekend) {
+        weekendCount += filteredStudents.length;
+      }
+      
+      const dateStr = day.toISOString().split("T")[0];
+      filteredStudents.forEach((stud) => {
+        const rec = allAttendanceRecords.find(
+          (r) => r.student_id === stud.student_id && r.attendance_date === dateStr
+        );
+        if (rec) {
+          if (rec.status === "present") {
+            presentCount++;
+          } else if (rec.status === "absent") {
+            absentCount++;
+          }
+        }
+      });
+    });
+
+    const total = presentCount + absentCount + weekendCount || 1;
+    return {
+      presentPct: Math.round((presentCount / total) * 100),
+      absentPct: Math.round((absentCount / total) * 100),
+      weekendPct: Math.round((weekendCount / total) * 100),
+      presentCount,
+      absentCount,
+      weekendCount
+    };
+  }, [weekDays, filteredStudents, allAttendanceRecords]);
+
+  const monthlyStats = useMemo(() => {
+    let presentCount = 0;
+    let absentCount = 0;
+    let weekendCount = 0;
+
+    daysInMonth.forEach((day) => {
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      if (isWeekend) {
+        weekendCount += filteredStudents.length;
+      }
+      
+      const dateStr = day.toISOString().split("T")[0];
+      filteredStudents.forEach((stud) => {
+        const rec = allAttendanceRecords.find(
+          (r) => r.student_id === stud.student_id && r.attendance_date === dateStr
+        );
+        if (rec) {
+          if (rec.status === "present") {
+            presentCount++;
+          } else if (rec.status === "absent") {
+            absentCount++;
+          }
+        }
+      });
+    });
+
+    const total = presentCount + absentCount + weekendCount || 1;
+    return {
+      presentPct: Math.round((presentCount / total) * 100),
+      absentPct: Math.round((absentCount / total) * 100),
+      weekendPct: Math.round((weekendCount / total) * 100),
+    };
+  }, [daysInMonth, filteredStudents, allAttendanceRecords]);
 
   function handleStatusChange(studentId: string, newStatus: "present" | "absent") {
     setRecords((prev) => ({
@@ -1336,6 +1496,7 @@ export function StudentAttendanceView() {
         }),
       });
       setStatus("Attendance submitted successfully!");
+      loadAttendanceRecords();
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : "Failed to submit attendance.");
@@ -1347,101 +1508,428 @@ export function StudentAttendanceView() {
   return (
     <DashboardLayout title="Student Attendance">
       <div className="attendance-page-content">
-        <form onSubmit={handleSubmit}>
-          <div className="attendance-filters" style={{ gridTemplateColumns: "1fr" }}>
-            <div className="form-field">
-              <span className="field-label">Attendance Date</span>
-              <input
-                type="date"
-                value={attendanceDate}
-                onChange={(e) => setAttendanceDate(e.target.value)}
-                required={true}
-              />
+        <div className="audit-header-section" style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <div className="directory-tabs">
+              <button
+                className={activeTab === "mark" ? "tab-btn active" : "tab-btn"}
+                type="button"
+                onClick={() => setActiveTab("mark")}
+              >
+                Mark Attendance
+              </button>
+              <button
+                className={activeTab === "sheet" ? "tab-btn active" : "tab-btn"}
+                type="button"
+                onClick={() => setActiveTab("sheet")}
+              >
+                Attendance Sheet
+              </button>
             </div>
+
+            {activeTab === "sheet" && (
+              <div className="sub-tabs">
+                <button
+                  className={sheetMode === "weekly" ? "sub-tab-btn active" : "sub-tab-btn"}
+                  type="button"
+                  onClick={() => setSheetMode("weekly")}
+                >
+                  Weekly Grid
+                </button>
+                <button
+                  className={sheetMode === "monthly" ? "sub-tab-btn active" : "sub-tab-btn"}
+                  type="button"
+                  onClick={() => setSheetMode("monthly")}
+                >
+                  Monthly Grid
+                </button>
+              </div>
+            )}
           </div>
 
-          {loadingStudents ? (
-            <p className="status-message">Loading students...</p>
-          ) : students.length > 0 ? (
-            <>
-              <div className="attendance-bulk-actions">
-                <button type="button" className="secondary-button" onClick={() => markAll("present")}>
-                  Mark All Present
-                </button>
-                <button type="button" className="secondary-button" onClick={() => markAll("absent")}>
-                  Mark All Absent
-                </button>
-              </div>
-
-              <div className="attendance-table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Roll Number</th>
-                      <th>Status</th>
-                      <th>Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students.map((student) => (
-                      <tr key={student.student_id}>
-                        <td>
-                          <div className="student-profile-cell">
-                            <span>{studentName(student)}</span>
-                          </div>
-                        </td>
-                        <td>{student.admission_no || "N/A"}</td>
-                        <td>
-                          <div className="segmented-control attendance-status-segmented" role="group" aria-label="Attendance Status">
-                            <button
-                              type="button"
-                              className={records[student.student_id]?.status === "present" ? "selected present-active" : ""}
-                              onClick={() => handleStatusChange(student.student_id, "present")}
-                            >
-                              Present
-                            </button>
-                            <button
-                              type="button"
-                              className={records[student.student_id]?.status === "absent" ? "selected absent-active" : ""}
-                              onClick={() => handleStatusChange(student.student_id, "absent")}
-                            >
-                              Absent
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            placeholder="Remarks (e.g. late, sick)"
-                            value={records[student.student_id]?.remarks || ""}
-                            onChange={(e) => handleRemarksChange(student.student_id, e.target.value)}
-                            className="table-remarks-input"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="attendance-submit-section">
-                {status ? <p className="form-status" style={{ flex: 1 }}>{status}</p> : null}
-                <button className="primary-button" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Attendance"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="status-message">No active students found.</p>
+          {activeTab === "sheet" && (
+            <div className="audit-filters-container" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+              {sheetMode === "weekly" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", background: "var(--tint)", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                    {weekRangeLabel}
+                  </span>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => changeWeek(-1)}
+                      style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
+                      title="Previous Week"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                      </svg>
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => changeWeek(1)}
+                      style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
+                      title="Next Week"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="audit-search-input"
+                  style={{ margin: 0, width: "200px" }}
+                  aria-label="Filter by month"
+                />
+              )}
+              <input
+                type="text"
+                placeholder="Search students..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="audit-search-input"
+                style={{ margin: 0 }}
+              />
+            </div>
           )}
+        </div>
 
-          {status && students.length === 0 ? <p className="status-message">{status}</p> : null}
-        </form>
+        {activeTab === "mark" ? (
+          <form onSubmit={handleSubmit}>
+            <div className="attendance-filters" style={{ gridTemplateColumns: "1fr" }}>
+              <div className="form-field">
+                <span className="field-label">Attendance Date</span>
+                <input
+                  type="date"
+                  value={attendanceDate}
+                  onChange={(e) => setAttendanceDate(e.target.value)}
+                  required={true}
+                />
+              </div>
+            </div>
+
+            {loadingStudents ? (
+              <p className="status-message">Loading students...</p>
+            ) : students.length > 0 ? (
+              <>
+                <div className="attendance-bulk-actions">
+                  <button type="button" className="secondary-button" onClick={() => markAll("present")}>
+                    Mark All Present
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => markAll("absent")}>
+                    Mark All Absent
+                  </button>
+                </div>
+
+                <div className="attendance-table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Roll Number</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((student) => (
+                        <tr key={student.student_id}>
+                          <td>
+                            <div className="student-profile-cell">
+                              <span>{studentName(student)}</span>
+                            </div>
+                          </td>
+                          <td>{student.admission_no || "N/A"}</td>
+                          <td>
+                            <div className="segmented-control attendance-status-segmented" role="group" aria-label="Attendance Status">
+                              <button
+                                type="button"
+                                className={records[student.student_id]?.status === "present" ? "selected present-active" : ""}
+                                onClick={() => handleStatusChange(student.student_id, "present")}
+                              >
+                                Present
+                              </button>
+                              <button
+                                type="button"
+                                className={records[student.student_id]?.status === "absent" ? "selected absent-active" : ""}
+                                onClick={() => handleStatusChange(student.student_id, "absent")}
+                              >
+                                Absent
+                              </button>
+                            </div>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              placeholder="Remarks (e.g. late, sick)"
+                              value={records[student.student_id]?.remarks || ""}
+                              onChange={(e) => handleRemarksChange(student.student_id, e.target.value)}
+                              className="table-remarks-input"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="attendance-submit-section">
+                  {status ? <p className="form-status" style={{ flex: 1 }}>{status}</p> : null}
+                  <button className="primary-button" type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Submitting..." : "Submit Attendance"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="status-message">No active students found.</p>
+            )}
+
+            {status && students.length === 0 ? <p className="status-message">{status}</p> : null}
+          </form>
+        ) : (
+          /* Attendance Sheet Display grid */
+          <>
+            {sheetMode === "weekly" ? (
+              <>
+                {/* Weekly summary stats bar */}
+                <div className="attendance-stats-summary">
+                  <div className="stat-item">
+                    <span className="bullet holiday"></span>
+                    <span>Holiday: {attendanceStats.weekendPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet present"></span>
+                    <span>Present: {attendanceStats.presentPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet absent"></span>
+                    <span>Absent: {attendanceStats.absentPct}%</span>
+                  </div>
+                </div>
+
+                {loadingRecords ? (
+                  <p className="status-message">Loading attendance records...</p>
+                ) : filteredStudents.length > 0 ? (
+                  <div className="attendance-grid-container">
+                    <table className="attendance-grid-table">
+                      <thead>
+                        <tr>
+                          <th>Student Profile</th>
+                          {weekDays.map((day, idx) => {
+                            const dateNum = day.getDate();
+                            const weekdayStr = day.toLocaleDateString("en-US", { weekday: "short" });
+                            return (
+                              <th key={idx} style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>{dateNum}</div>
+                                <div style={{ fontSize: "9px", color: "var(--muted)", fontWeight: 500 }}>{weekdayStr}</div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredStudents.map((student) => {
+                          const name = studentName(student);
+                          return (
+                            <tr key={student.student_id}>
+                              <td>
+                                <div className="grid-profile-cell">
+                                  <Avatar variant="profile" />
+                                  <div>
+                                    <div className="grid-profile-name">{name}</div>
+                                    <div className="grid-profile-code">Roll: {student.admission_no || "N/A"}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              {weekDays.map((day, idx) => {
+                                const dateStr = day.toISOString().split("T")[0];
+                                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                
+                                // Find record
+                                const rec = allAttendanceRecords.find(
+                                  (r) => r.student_id === student.student_id && r.attendance_date === dateStr
+                                );
+                                
+                                if (isWeekend) {
+                                  return (
+                                    <td key={idx}>
+                                      <div className="grid-attendance-card holiday">
+                                        <span className="grid-card-status">Holiday</span>
+                                        <span className="grid-card-notes">Weekend</span>
+                                      </div>
+                                    </td>
+                                  );
+                                }
+                                
+                                if (rec) {
+                                  if (rec.status === "present") {
+                                    return (
+                                      <td key={idx}>
+                                        <div className="grid-attendance-card present">
+                                          <span className="grid-card-status">Present</span>
+                                          {rec.remarks && (
+                                            <span className="grid-card-notes" title={rec.remarks}>{rec.remarks}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    );
+                                  } else {
+                                    return (
+                                      <td key={idx}>
+                                        <div className="grid-attendance-card absent">
+                                          <span className="grid-card-status">Absent</span>
+                                          {rec.remarks && (
+                                            <span className="grid-card-notes" title={rec.remarks}>{rec.remarks}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                }
+                                
+                                return (
+                                  <td key={idx}>
+                                    <div className="grid-attendance-card none">
+                                      <span className="grid-card-status">—</span>
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="status-message">No students found matching search query.</p>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Monthly summary stats bar */}
+                <div className="attendance-stats-summary">
+                  <div className="stat-item">
+                    <span className="bullet holiday"></span>
+                    <span>Holiday: {monthlyStats.weekendPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet present"></span>
+                    <span>Present: {monthlyStats.presentPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet absent"></span>
+                    <span>Absent: {monthlyStats.absentPct}%</span>
+                  </div>
+                </div>
+
+                {loadingRecords ? (
+                  <p className="status-message">Loading attendance records...</p>
+                ) : filteredStudents.length > 0 ? (
+                  <div className="attendance-grid-container">
+                    <table className="attendance-grid-table">
+                      <thead>
+                        <tr>
+                          <th>Student Profile</th>
+                          {daysInMonth.map((day, idx) => {
+                            const dateNum = day.getDate();
+                            const weekdayStr = day.toLocaleDateString("en-US", { weekday: "narrow" });
+                            return (
+                              <th key={idx} style={{ textAlign: "center", padding: "8px 4px", minWidth: "36px" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>{dateNum}</div>
+                                <div style={{ fontSize: "8px", color: "var(--muted)", fontWeight: 500 }}>{weekdayStr}</div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredStudents.map((student) => {
+                          const name = studentName(student);
+                          return (
+                            <tr key={student.student_id}>
+                              <td>
+                                <div className="grid-profile-cell">
+                                  <Avatar variant="profile" />
+                                  <div>
+                                    <div className="grid-profile-name">{name}</div>
+                                    <div className="grid-profile-code">Roll: {student.admission_no || "N/A"}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              {daysInMonth.map((day, idx) => {
+                                const dateStr = day.toISOString().split("T")[0];
+                                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                
+                                // Find record
+                                const rec = allAttendanceRecords.find(
+                                  (r) => r.student_id === student.student_id && r.attendance_date === dateStr
+                                );
+                                
+                                if (isWeekend) {
+                                  return (
+                                    <td key={idx} style={{ padding: "4px 2px" }}>
+                                      <div className="grid-attendance-dot holiday" title={`${dateStr}: Weekend`}>
+                                        H
+                                      </div>
+                                    </td>
+                                  );
+                                }
+                                
+                                if (rec) {
+                                  const titleText = `${dateStr}: ${rec.status.toUpperCase()}${rec.remarks ? ` - ${rec.remarks}` : ""}`;
+                                  if (rec.status === "present") {
+                                    return (
+                                      <td key={idx} style={{ padding: "4px 2px" }}>
+                                        <div className="grid-attendance-dot present" title={titleText}>
+                                          P
+                                        </div>
+                                      </td>
+                                    );
+                                  } else {
+                                    return (
+                                      <td key={idx} style={{ padding: "4px 2px" }}>
+                                        <div className="grid-attendance-dot absent" title={titleText}>
+                                          A
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                }
+                                
+                                return (
+                                  <td key={idx} style={{ padding: "4px 2px" }}>
+                                    <div className="grid-attendance-dot none" title={`${dateStr}: No Record`}>
+                                      —
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="status-message">No students found matching search query.</p>
+                )}
+              </>
+            )}
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
 }
+
 
 type ApiFaculty = {
   faculty_id: string;
@@ -1473,6 +1961,37 @@ export function FacultyAttendanceView() {
   const [rowSubmitting, setRowSubmitting] = useState<Record<string, boolean>>({});
   const [rowStatus, setRowStatus] = useState<Record<string, string>>({});
 
+  // Consolidated Sheet & Feed States (merged from CheckInAuditView)
+  const [activeTab, setActiveTab] = useState<"mark" | "sheet">("mark");
+  const [sheetMode, setSheetMode] = useState<"weekly" | "monthly" | "feed">("weekly");
+  const [allAttendanceRecords, setAllAttendanceRecords] = useState<AuditFacultyRecord[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(today.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      options.push({ label, value });
+    }
+    return options;
+  }, []);
+
   const getTodayTimeStr = () => {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, "0");
@@ -1484,7 +2003,7 @@ export function FacultyAttendanceView() {
     setLoading(true);
     apiRequest<{ results: ApiFaculty[] }>("/faculty?limit=200")
       .then((res) => {
-        setFaculty(res.results);
+        setFaculty(res.results || []);
         const initialTime = getTodayTimeStr();
         const initialRecords: Record<string, { status: "present" | "absent"; checkInTime: string; notes: string }> = {};
         res.results.forEach((member) => {
@@ -1498,6 +2017,216 @@ export function FacultyAttendanceView() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const loadAttendanceRecords = useCallback(() => {
+    setLoadingRecords(true);
+    apiRequest<AuditFacultyRecord[]>("/attendance/faculty")
+      .then((data) => {
+        setAllAttendanceRecords(data || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load audit logs:", err);
+      })
+      .finally(() => setLoadingRecords(false));
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "sheet") {
+      loadAttendanceRecords();
+    }
+  }, [activeTab, loadAttendanceRecords]);
+
+  const weekDays = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(currentWeekStart);
+      d.setDate(currentWeekStart.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentWeekStart]);
+
+  const weekRangeLabel = useMemo(() => {
+    const start = weekDays[0];
+    const end = weekDays[6];
+    const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+    return `${start.toLocaleDateString("en-US", opt)} - ${end.toLocaleDateString("en-US", opt)}`;
+  }, [weekDays]);
+
+  const daysInMonth = useMemo(() => {
+    if (!selectedMonth) return [];
+    const [yearStr, monthStr] = selectedMonth.split("-");
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10) - 1; // 0-indexed
+    const date = new Date(year, month, 1);
+    const days = [];
+    while (date.getMonth() === month) {
+      days.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  }, [selectedMonth]);
+
+  function changeWeek(offset: number) {
+    setCurrentWeekStart((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + offset * 7);
+      return next;
+    });
+  }
+
+  const filteredFaculty = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return faculty;
+    return faculty.filter((f) => {
+      const name = `${f.first_name || ""} ${f.last_name || ""}`.toLowerCase();
+      const code = (f.employee_code || "").toLowerCase();
+      return name.includes(query) || code.includes(query);
+    });
+  }, [faculty, searchQuery]);
+
+  const attendanceStats = useMemo(() => {
+    let presentCount = 0;
+    let absentCount = 0;
+    let weekendCount = 0;
+
+    weekDays.forEach((day) => {
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      if (isWeekend) {
+        weekendCount += filteredFaculty.length;
+      }
+      
+      const dateStr = day.toISOString().split("T")[0];
+      filteredFaculty.forEach((fac) => {
+        const rec = allAttendanceRecords.find(
+          (r) => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr
+        );
+        if (rec) {
+          if (rec.status === "present") {
+            presentCount++;
+          } else if (rec.status === "absent") {
+            absentCount++;
+          }
+        }
+      });
+    });
+
+    const total = presentCount + absentCount + weekendCount || 1;
+    return {
+      presentPct: Math.round((presentCount / total) * 100),
+      absentPct: Math.round((absentCount / total) * 100),
+      weekendPct: Math.round((weekendCount / total) * 100),
+    };
+  }, [weekDays, filteredFaculty, allAttendanceRecords]);
+
+  const monthlyStats = useMemo(() => {
+    let presentCount = 0;
+    let absentCount = 0;
+    let weekendCount = 0;
+
+    daysInMonth.forEach((day) => {
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      if (isWeekend) {
+        weekendCount += filteredFaculty.length;
+      }
+      
+      const dateStr = day.toISOString().split("T")[0];
+      filteredFaculty.forEach((fac) => {
+        const rec = allAttendanceRecords.find(
+          (r) => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr
+        );
+        if (rec) {
+          if (rec.status === "present") {
+            presentCount++;
+          } else if (rec.status === "absent") {
+            absentCount++;
+          }
+        }
+      });
+    });
+
+    const total = presentCount + absentCount + weekendCount || 1;
+    return {
+      presentPct: Math.round((presentCount / total) * 100),
+      absentPct: Math.round((absentCount / total) * 100),
+      weekendPct: Math.round((weekendCount / total) * 100),
+    };
+  }, [daysInMonth, filteredFaculty, allAttendanceRecords]);
+
+  const filteredFeedRecords = useMemo(() => {
+    return allAttendanceRecords.filter((rec) => {
+      const monthMatch = rec.attendance_date.startsWith(selectedMonth);
+      if (!monthMatch) return false;
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const code = rec.faculty?.employee_code?.toLowerCase() || "";
+        const name = `${rec.faculty?.first_name || ""} ${rec.faculty?.last_name || ""}`.toLowerCase();
+        return code.includes(query) || name.includes(query);
+      }
+
+      return true;
+    });
+  }, [allAttendanceRecords, selectedMonth, searchQuery]);
+
+  const groupedFeedRecords = useMemo(() => {
+    const groups: Record<string, AuditFacultyRecord[]> = {};
+    const sorted = [...filteredFeedRecords].sort((a, b) => {
+      if (a.attendance_date !== b.attendance_date) {
+        return b.attendance_date.localeCompare(a.attendance_date);
+      }
+      const timeA = parseRemarks(a.remarks).time;
+      const timeB = parseRemarks(b.remarks).time;
+      if (timeA !== timeB) {
+        return timeB.localeCompare(timeA);
+      }
+      return (a.faculty?.employee_code || "").localeCompare(b.faculty?.employee_code || "");
+    });
+
+    sorted.forEach((rec) => {
+      const dateKey = rec.attendance_date;
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(rec);
+    });
+
+    return groups;
+  }, [filteredFeedRecords]);
+
+  function parseRemarks(remarksStr: string | null) {
+    if (!remarksStr) return { time: "—", notes: "—" };
+    try {
+      const parsed = JSON.parse(remarksStr);
+      return {
+        time: parsed.check_in_time || "—",
+        notes: parsed.notes || "—",
+      };
+    } catch {
+      return {
+        time: "—",
+        notes: remarksStr || "—",
+      };
+    }
+  }
+
+  function formatDateHeader(dateStr: string) {
+    if (!dateStr) return "";
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(year, month, day);
+      return dateObj.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
+    return dateStr;
+  }
 
   function handleStatusChange(facultyId: string, newStatus: "present" | "absent") {
     setRecords((prev) => ({
@@ -1572,6 +2301,7 @@ export function FacultyAttendanceView() {
       setTimeout(() => {
         setRowStatus((prev) => ({ ...prev, [memberId]: "" }));
       }, 3000);
+      loadAttendanceRecords();
     } catch (err) {
       console.error(err);
       setRowStatus((prev) => ({ ...prev, [memberId]: "Failed" }));
@@ -1613,6 +2343,7 @@ export function FacultyAttendanceView() {
         }),
       });
       setStatus("Attendance submitted successfully!");
+      loadAttendanceRecords();
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : "Failed to submit attendance.");
@@ -1628,624 +2359,562 @@ export function FacultyAttendanceView() {
   return (
     <DashboardLayout title="Faculty Attendance">
       <div className="attendance-page-content">
-        <form onSubmit={handleSubmit}>
-          <div className="attendance-filters" style={{ gridTemplateColumns: "1fr" }}>
-            <div className="form-field">
-              <span className="field-label">Attendance Date</span>
-              <input
-                type="date"
-                value={attendanceDate}
-                onChange={(e) => setAttendanceDate(e.target.value)}
-                required={true}
-              />
-            </div>
-          </div>
-
-          {loading ? (
-            <p className="status-message">Loading faculty directory...</p>
-          ) : faculty.length > 0 ? (
-            <>
-              <div className="attendance-bulk-actions">
-                <button type="button" className="secondary-button" onClick={() => markAll("present")}>
-                  Mark All Checked In
-                </button>
-                <button type="button" className="secondary-button" onClick={() => markAll("absent")}>
-                  Mark All Absent
-                </button>
-              </div>
-
-              <div className="attendance-table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Faculty Member</th>
-                      <th>Employee Code</th>
-                      <th>Designation</th>
-                      <th>Status</th>
-                      <th>Check-in Time</th>
-                      <th>Notes</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {faculty.map((member) => {
-                      const record = records[member.faculty_id] || { status: "present", checkInTime: "09:00", notes: "" };
-                      return (
-                        <tr key={member.faculty_id}>
-                          <td>
-                            <div className="faculty-profile-cell">
-                              <Avatar variant="profile" />
-                              <span>{facultyName(member)}</span>
-                            </div>
-                          </td>
-                          <td>{member.employee_code || "N/A"}</td>
-                          <td>{member.designation || "Staff"}</td>
-                          <td>
-                            <div className="segmented-control attendance-status-segmented" role="group" aria-label="Attendance Status">
-                              <button
-                                type="button"
-                                className={record.status === "present" ? "selected present-active" : ""}
-                                onClick={() => handleStatusChange(member.faculty_id, "present")}
-                              >
-                                Checked In
-                              </button>
-                              <button
-                                type="button"
-                                className={record.status === "absent" ? "selected absent-active" : ""}
-                                onClick={() => handleStatusChange(member.faculty_id, "absent")}
-                              >
-                                Absent
-                              </button>
-                            </div>
-                          </td>
-                          <td>
-                            {record.status === "present" ? (
-                              <input
-                                type="time"
-                                value={record.checkInTime}
-                                onChange={(e) => handleCheckInTimeChange(member.faculty_id, e.target.value)}
-                                className="table-time-input"
-                              />
-                            ) : (
-                              <span style={{ color: "var(--muted)" }}>—</span>
-                            )}
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              placeholder="Notes (optional)"
-                              value={record.notes}
-                              onChange={(e) => handleNotesChange(member.faculty_id, e.target.value)}
-                              className="table-remarks-input"
-                            />
-                          </td>
-                          <td>
-                            <div className="row-actions-cell" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <button
-                                type="button"
-                                className="row-submit-button"
-                                onClick={() => handleIndividualSubmit(member.faculty_id)}
-                                disabled={rowSubmitting[member.faculty_id]}
-                              >
-                                {rowSubmitting[member.faculty_id]
-                                  ? "Saving..."
-                                  : record.status === "present"
-                                  ? "Check In"
-                                  : "Save Absent"}
-                              </button>
-                              {rowStatus[member.faculty_id] && (
-                                <span
-                                  className={`row-status-indicator ${
-                                    rowStatus[member.faculty_id].includes("Saved") ? "success" : "error"
-                                  }`}
-                                >
-                                  {rowStatus[member.faculty_id]}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="attendance-submit-section">
-                {status ? <p className="form-status" style={{ flex: 1 }}>{status}</p> : null}
-                <button className="primary-button" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Attendance"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="status-message">No active faculty found.</p>
-          )}
-
-          {status && faculty.length === 0 ? <p className="status-message">{status}</p> : null}
-        </form>
-      </div>
-    </DashboardLayout>
-  );
-}
-
-export function CheckInAuditView() {
-  const [records, setRecords] = useState<AuditFacultyRecord[]>([]);
-  const [facultyList, setFacultyList] = useState<ApiFaculty[]>([]);
-  const [activeTab, setActiveTab] = useState<"grid" | "feed">("grid");
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday
-    const monday = new Date(today.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    return monday;
-  });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
-
-  const monthOptions = useMemo(() => {
-    const options = [];
-    const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      options.push({ label, value });
-    }
-    return options;
-  }, []);
-
-  useEffect(() => {
-    setLoading(true);
-    setStatus("");
-    
-    // Load records
-    apiRequest<AuditFacultyRecord[]>("/attendance/faculty")
-      .then((data) => {
-        setRecords(data);
-      })
-      .catch((err) => {
-        console.error("Failed to load audit logs:", err);
-        setStatus("Failed to load attendance logs.");
-      })
-      .finally(() => setLoading(false));
-
-    // Load faculty members
-    apiRequest<{ results: ApiFaculty[] }>("/faculty?limit=200")
-      .then((res) => {
-        setFacultyList(res.results || []);
-      })
-      .catch((err) => {
-        console.error("Failed to load faculty:", err);
-      });
-  }, []);
-
-  const weekDays = useMemo(() => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(currentWeekStart);
-      d.setDate(currentWeekStart.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  }, [currentWeekStart]);
-
-  const weekRangeLabel = useMemo(() => {
-    const start = weekDays[0];
-    const end = weekDays[6];
-    const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
-    return `${start.toLocaleDateString("en-US", opt)} - ${end.toLocaleDateString("en-US", opt)}`;
-  }, [weekDays]);
-
-  function changeWeek(offset: number) {
-    setCurrentWeekStart((prev) => {
-      const next = new Date(prev);
-      next.setDate(prev.getDate() + offset * 7);
-      return next;
-    });
-  }
-
-  const filteredFaculty = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return facultyList;
-    return facultyList.filter((f) => {
-      const name = `${f.first_name || ""} ${f.last_name || ""}`.toLowerCase();
-      const code = (f.employee_code || "").toLowerCase();
-      return name.includes(query) || code.includes(query);
-    });
-  }, [facultyList, searchQuery]);
-
-  const filteredRecords = useMemo(() => {
-    return records.filter((rec) => {
-      const monthMatch = rec.attendance_date.startsWith(selectedMonth);
-      if (!monthMatch) return false;
-
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const code = rec.faculty?.employee_code?.toLowerCase() || "";
-        const name = `${rec.faculty?.first_name || ""} ${rec.faculty?.last_name || ""}`.toLowerCase();
-        return code.includes(query) || name.includes(query);
-      }
-
-      return true;
-    });
-  }, [records, selectedMonth, searchQuery]);
-
-  function parseRemarks(remarksStr: string | null) {
-    if (!remarksStr) return { time: "—", notes: "—" };
-    try {
-      const parsed = JSON.parse(remarksStr);
-      return {
-        time: parsed.check_in_time || "—",
-        notes: parsed.notes || "—",
-      };
-    } catch {
-      return {
-        time: "—",
-        notes: remarksStr || "—",
-      };
-    }
-  }
-
-  const attendanceStats = useMemo(() => {
-    let presentCount = 0;
-    let absentCount = 0;
-    let weekendCount = 0;
-
-    weekDays.forEach((day) => {
-      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-      if (isWeekend) {
-        weekendCount += facultyList.length;
-      }
-      
-      const dateStr = day.toISOString().split("T")[0];
-      facultyList.forEach((fac) => {
-        const rec = records.find(r => r.faculty_id === fac.faculty_id && r.attendance_date === dateStr);
-        if (rec) {
-          if (rec.status === "present") {
-            presentCount++;
-          } else if (rec.status === "absent") {
-            absentCount++;
-          }
-        }
-      });
-    });
-
-    const total = presentCount + absentCount + weekendCount || 1;
-    return {
-      presentPct: Math.round((presentCount / total) * 100),
-      absentPct: Math.round((absentCount / total) * 100),
-      weekendPct: Math.round((weekendCount / total) * 100),
-      presentCount,
-      absentCount,
-      weekendCount
-    };
-  }, [weekDays, facultyList, records]);
-
-  const groupedRecords = useMemo(() => {
-    const groups: Record<string, AuditFacultyRecord[]> = {};
-    const sorted = [...filteredRecords].sort((a, b) => {
-      if (a.attendance_date !== b.attendance_date) {
-        return b.attendance_date.localeCompare(a.attendance_date);
-      }
-      const timeA = parseRemarks(a.remarks).time;
-      const timeB = parseRemarks(b.remarks).time;
-      if (timeA !== timeB) {
-        return timeB.localeCompare(timeA);
-      }
-      return (a.faculty?.employee_code || "").localeCompare(b.faculty?.employee_code || "");
-    });
-
-    sorted.forEach((rec) => {
-      const dateKey = rec.attendance_date;
-      if (!groups[dateKey]) {
-        groups[dateKey] = [];
-      }
-      groups[dateKey].push(rec);
-    });
-
-    return groups;
-  }, [filteredRecords]);
-
-  function formatDateHeader(dateStr: string) {
-    if (!dateStr) return "";
-    const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const dateObj = new Date(year, month, day);
-      return dateObj.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    }
-    return dateStr;
-  }
-
-  return (
-    <DashboardLayout title="Check-in Audit">
-      <div className="attendance-page-content">
-        <div className="audit-header-section" style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "16px", alignItems: "stretch" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3>Faculty Attendance Records</h3>
-            <div className="directory-tabs" style={{ alignSelf: "center", margin: 0 }}>
+        <div className="audit-header-section" style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <div className="directory-tabs">
               <button
-                className={activeTab === "grid" ? "tab-btn active" : "tab-btn"}
+                className={activeTab === "mark" ? "tab-btn active" : "tab-btn"}
                 type="button"
-                onClick={() => setActiveTab("grid")}
+                onClick={() => setActiveTab("mark")}
               >
-                Weekly Grid
+                Mark Attendance
               </button>
               <button
-                className={activeTab === "feed" ? "tab-btn active" : "tab-btn"}
+                className={activeTab === "sheet" ? "tab-btn active" : "tab-btn"}
                 type="button"
-                onClick={() => setActiveTab("feed")}
+                onClick={() => setActiveTab("sheet")}
               >
-                History Feed
+                Attendance Sheet
               </button>
             </div>
-          </div>
-          
-          <div className="audit-filters-container" style={{ display: "flex", justifyContent: "space-between", gap: "16px", width: "100%" }}>
-            {activeTab === "feed" ? (
-              <select
-                aria-label="Filter by month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{ width: "200px" }}
-              >
-                {monthOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", background: "var(--tint)", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)" }}>
-                  {weekRangeLabel}
-                </span>
-                <div style={{ display: "flex", gap: "4px" }}>
-                  <button
-                    className="secondary-button"
-                    onClick={() => changeWeek(-1)}
-                    style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
-                    title="Previous Week"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="15 18 9 12 15 6"></polyline>
-                    </svg>
-                  </button>
-                  <button
-                    className="secondary-button"
-                    onClick={() => changeWeek(1)}
-                    style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
-                    title="Next Week"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                  </button>
-                </div>
+
+            {activeTab === "sheet" && (
+              <div className="sub-tabs">
+                <button
+                  className={sheetMode === "weekly" ? "sub-tab-btn active" : "sub-tab-btn"}
+                  type="button"
+                  onClick={() => setSheetMode("weekly")}
+                >
+                  Weekly Grid
+                </button>
+                <button
+                  className={sheetMode === "monthly" ? "sub-tab-btn active" : "sub-tab-btn"}
+                  type="button"
+                  onClick={() => setSheetMode("monthly")}
+                >
+                  Monthly Grid
+                </button>
+                <button
+                  className={sheetMode === "feed" ? "sub-tab-btn active" : "sub-tab-btn"}
+                  type="button"
+                  onClick={() => setSheetMode("feed")}
+                >
+                  History Feed
+                </button>
               </div>
             )}
-            
-            <input
-              type="text"
-              placeholder="Search faculty..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="audit-search-input"
-              style={{ margin: 0 }}
-            />
           </div>
+
+          {activeTab === "sheet" && (
+            <div className="audit-filters-container" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+              {sheetMode === "weekly" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", background: "var(--tint)", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                    {weekRangeLabel}
+                  </span>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => changeWeek(-1)}
+                      style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
+                      title="Previous Week"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                      </svg>
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => changeWeek(1)}
+                      style={{ minHeight: "36px", padding: "0 10px", borderRadius: "8px" }}
+                      title="Next Week"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="audit-search-input"
+                  style={{ margin: 0, width: "200px" }}
+                  aria-label="Filter by month"
+                />
+              )}
+              <input
+                type="text"
+                placeholder="Search faculty..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="audit-search-input"
+                style={{ margin: 0 }}
+              />
+            </div>
+          )}
         </div>
 
-        {activeTab === "grid" ? (
-          <>
-            {/* Scholarly statistics bar */}
-            <div className="attendance-stats-summary">
-              <div className="stat-item">
-                <span className="bullet holiday"></span>
-                <span>Holiday: {attendanceStats.weekendPct}%</span>
-              </div>
-              <div className="stat-item">
-                <span className="bullet present"></span>
-                <span>Checked In: {attendanceStats.presentPct}%</span>
-              </div>
-              <div className="stat-item">
-                <span className="bullet absent"></span>
-                <span>Absent: {attendanceStats.absentPct}%</span>
+        {activeTab === "mark" ? (
+          <form onSubmit={handleSubmit}>
+            <div className="attendance-filters" style={{ gridTemplateColumns: "1fr" }}>
+              <div className="form-field">
+                <span className="field-label">Attendance Date</span>
+                <input
+                  type="date"
+                  value={attendanceDate}
+                  onChange={(e) => setAttendanceDate(e.target.value)}
+                  required={true}
+                />
               </div>
             </div>
 
-            <div className="attendance-grid-container">
-              <table className="attendance-grid-table">
-                <thead>
-                  <tr>
-                    <th>Staff Profile</th>
-                    {weekDays.map((day, idx) => {
-                      const dateNum = day.getDate();
-                      const weekdayStr = day.toLocaleDateString("en-US", { weekday: "short" });
-                      return (
-                        <th key={idx} style={{ textAlign: "center" }}>
-                          <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>{dateNum}</div>
-                          <div style={{ fontSize: "9px", color: "var(--muted)", fontWeight: 500 }}>{weekdayStr}</div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredFaculty.map((member) => {
-                    const name = [member.first_name, member.last_name].filter(Boolean).join(" ") || "Faculty Member";
-                    return (
-                      <tr key={member.faculty_id}>
-                        <td>
-                          <div className="grid-profile-cell">
-                            <Avatar variant="profile" />
-                            <div>
-                              <div className="grid-profile-name">{name}</div>
-                              <div className="grid-profile-code">Code: {member.employee_code || "N/A"}</div>
-                            </div>
-                          </div>
-                        </td>
-                        {weekDays.map((day, idx) => {
-                          const dateStr = day.toISOString().split("T")[0];
-                          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                          
-                          // Find record
-                          const rec = records.find(
-                            (r) => r.faculty_id === member.faculty_id && r.attendance_date === dateStr
-                          );
-                          
-                          if (isWeekend) {
-                            return (
-                              <td key={idx}>
-                                <div className="grid-attendance-card holiday">
-                                  <span className="grid-card-status">Holiday</span>
-                                  <span className="grid-card-notes">Weekend</span>
-                                </div>
-                              </td>
-                            );
-                          }
-                          
-                          if (rec) {
-                            const { time, notes } = parseRemarks(rec.remarks);
-                            if (rec.status === "present") {
-                              return (
-                                <td key={idx}>
-                                  <div className="grid-attendance-card present">
-                                    <span className="grid-card-status">Present</span>
-                                    <span className="grid-card-time">{time !== "—" ? time : "09:00"}</span>
-                                    {notes && notes !== "—" && (
-                                      <span className="grid-card-notes" title={notes}>{notes}</span>
-                                    )}
-                                  </div>
-                                </td>
-                              );
-                            } else {
-                              return (
-                                <td key={idx}>
-                                  <div className="grid-attendance-card absent">
-                                    <span className="grid-card-status">Absent</span>
-                                    {notes && notes !== "—" && (
-                                      <span className="grid-card-notes" title={notes}>{notes}</span>
-                                    )}
-                                  </div>
-                                </td>
-                              );
-                            }
-                          }
-                          
-                          return (
-                            <td key={idx}>
-                              <div className="grid-attendance-card none">
-                                <span className="grid-card-status">—</span>
+            {loading ? (
+              <p className="status-message">Loading faculty directory...</p>
+            ) : faculty.length > 0 ? (
+              <>
+                <div className="attendance-bulk-actions">
+                  <button type="button" className="secondary-button" onClick={() => markAll("present")}>
+                    Mark All Checked In
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => markAll("absent")}>
+                    Mark All Absent
+                  </button>
+                </div>
+
+                <div className="attendance-table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Faculty Member</th>
+                        <th>Employee Code</th>
+                        <th>Designation</th>
+                        <th>Status</th>
+                        <th>Check-in Time</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {faculty.map((member) => {
+                        const record = records[member.faculty_id] || { status: "present", checkInTime: "09:00", notes: "" };
+                        return (
+                          <tr key={member.faculty_id}>
+                            <td>
+                              <div className="faculty-profile-cell">
+                                <Avatar variant="profile" />
+                                <span>{facultyName(member)}</span>
                               </div>
                             </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          /* Original history feed */
-          loading ? (
-            <p className="status-message">Loading audit logs...</p>
-          ) : Object.keys(groupedRecords).length > 0 ? (
-            <div className="audit-feed">
-              {Object.entries(groupedRecords).map(([dateStr, dayRecords]) => {
-                const presentCount = dayRecords.filter((r) => r.status === "present").length;
-                const absentCount = dayRecords.filter((r) => r.status === "absent").length;
-
-                return (
-                  <div key={dateStr} className="audit-date-card" style={{ padding: 0, overflow: "hidden" }}>
-                    <div className="audit-date-header">
-                      <div className="audit-date-title-wrapper" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span className="audit-calendar-icon" aria-hidden="true" style={{ display: "flex", alignItems: "center" }}>
-                          <Icon name="calendar" />
-                        </span>
-                        <h4>{formatDateHeader(dateStr)}</h4>
-                      </div>
-                      <div className="audit-date-stats">
-                        <span className="stats-badge present">{presentCount} Present</span>
-                        {absentCount > 0 && <span className="stats-badge absent">{absentCount} Absent</span>}
-                      </div>
-                    </div>
-                    <div className="audit-date-body" style={{ padding: "8px 0" }}>
-                      <div className="audit-log-list">
-                        {dayRecords.map((rec) => {
-                          const name = rec.faculty
-                            ? `${rec.faculty.first_name} ${rec.faculty.last_name || ""}`.trim()
-                            : "Faculty Member";
-                          const { time, notes } = parseRemarks(rec.remarks);
-
-                          return (
-                            <div key={rec.attendance_id} className="audit-log-item">
-                              <div className="audit-log-faculty-info" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                <Avatar variant="profile" />
-                                <div className="audit-log-faculty-meta">
-                                  <span className="faculty-name" style={{ display: "block", fontSize: "14px", fontWeight: 600 }}>{name}</span>
-                                  <span className="faculty-code" style={{ fontSize: "11px", color: "var(--muted)" }}>{rec.faculty?.employee_code || "N/A"}</span>
-                                </div>
+                            <td>{member.employee_code || "N/A"}</td>
+                            <td>{member.designation || "Staff"}</td>
+                            <td>
+                              <div className="segmented-control attendance-status-segmented" role="group" aria-label="Attendance Status">
+                                <button
+                                  type="button"
+                                  className={record.status === "present" ? "selected present-active" : ""}
+                                  onClick={() => handleStatusChange(member.faculty_id, "present")}
+                                >
+                                  Checked In
+                                </button>
+                                <button
+                                  type="button"
+                                  className={record.status === "absent" ? "selected absent-active" : ""}
+                                  onClick={() => handleStatusChange(member.faculty_id, "absent")}
+                                >
+                                  Absent
+                                </button>
                               </div>
-
-                              <div className="audit-log-status">
-                                <span className={`status-pill ${rec.status === "present" ? "present" : "absent"}`}>
-                                  {rec.status === "present" ? "Checked In" : "Absent"}
-                                </span>
-                              </div>
-
-                              <div className="audit-log-time" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                {rec.status === "present" ? (
-                                  <>
-                                    <span className="time-icon" aria-hidden="true" style={{ display: "flex", alignItems: "center" }}>
-                                      <Icon name="clock" />
-                                    </span>
-                                    <span className="time-value">{time}</span>
-                                  </>
-                                ) : (
-                                  <span className="time-value absent-time" style={{ color: "var(--muted)" }}>—</span>
+                            </td>
+                            <td>
+                              {record.status === "present" ? (
+                                <input
+                                  type="time"
+                                  value={record.checkInTime}
+                                  onChange={(e) => handleCheckInTimeChange(member.faculty_id, e.target.value)}
+                                  className="table-time-input"
+                                />
+                              ) : (
+                                <span style={{ color: "var(--muted)" }}>—</span>
+                              )}
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                placeholder="Notes (optional)"
+                                value={record.notes}
+                                onChange={(e) => handleNotesChange(member.faculty_id, e.target.value)}
+                                className="table-remarks-input"
+                              />
+                            </td>
+                            <td>
+                              <div className="row-actions-cell" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <button
+                                  type="button"
+                                  className="row-submit-button"
+                                  onClick={() => handleIndividualSubmit(member.faculty_id)}
+                                  disabled={rowSubmitting[member.faculty_id]}
+                                >
+                                  {rowSubmitting[member.faculty_id]
+                                    ? "Saving..."
+                                    : record.status === "present"
+                                    ? "Check In"
+                                    : "Save Absent"}
+                                </button>
+                                {rowStatus[member.faculty_id] && (
+                                  <span
+                                    className={`row-status-indicator ${
+                                      rowStatus[member.faculty_id].includes("Saved") ? "success" : "error"
+                                    }`}
+                                  >
+                                    {rowStatus[member.faculty_id]}
+                                  </span>
                                 )}
                               </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                              <div className="audit-log-notes">
-                                <span className="notes-label" style={{ marginRight: "4px" }}>Notes:</span>
-                                <span className="notes-value">{notes}</span>
-                              </div>
-                            </div>
+                <div className="attendance-submit-section">
+                  {status ? <p className="form-status" style={{ flex: 1 }}>{status}</p> : null}
+                  <button className="primary-button" type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Submitting..." : "Submit Attendance"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="status-message">No active faculty found.</p>
+            )}
+
+            {status && faculty.length === 0 ? <p className="status-message">{status}</p> : null}
+          </form>
+        ) : (
+          /* Attendance Sheets display */
+          <>
+            {sheetMode === "weekly" ? (
+              <>
+                <div className="attendance-stats-summary">
+                  <div className="stat-item">
+                    <span className="bullet holiday"></span>
+                    <span>Holiday: {attendanceStats.weekendPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet present"></span>
+                    <span>Checked In: {attendanceStats.presentPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet absent"></span>
+                    <span>Absent: {attendanceStats.absentPct}%</span>
+                  </div>
+                </div>
+
+                {loadingRecords ? (
+                  <p className="status-message">Loading attendance records...</p>
+                ) : filteredFaculty.length > 0 ? (
+                  <div className="attendance-grid-container">
+                    <table className="attendance-grid-table">
+                      <thead>
+                        <tr>
+                          <th>Staff Profile</th>
+                          {weekDays.map((day, idx) => {
+                            const dateNum = day.getDate();
+                            const weekdayStr = day.toLocaleDateString("en-US", { weekday: "short" });
+                            return (
+                              <th key={idx} style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>{dateNum}</div>
+                                <div style={{ fontSize: "9px", color: "var(--muted)", fontWeight: 500 }}>{weekdayStr}</div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredFaculty.map((member) => {
+                          const name = facultyName(member);
+                          return (
+                            <tr key={member.faculty_id}>
+                              <td>
+                                <div className="grid-profile-cell">
+                                  <Avatar variant="profile" />
+                                  <div>
+                                    <div className="grid-profile-name">{name}</div>
+                                    <div className="grid-profile-code">Code: {member.employee_code || "N/A"}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              {weekDays.map((day, idx) => {
+                                const dateStr = day.toISOString().split("T")[0];
+                                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                
+                                // Find record
+                                const rec = allAttendanceRecords.find(
+                                  (r) => r.faculty_id === member.faculty_id && r.attendance_date === dateStr
+                                );
+                                
+                                if (isWeekend) {
+                                  return (
+                                    <td key={idx}>
+                                      <div className="grid-attendance-card holiday">
+                                        <span className="grid-card-status">Holiday</span>
+                                        <span className="grid-card-notes">Weekend</span>
+                                      </div>
+                                    </td>
+                                  );
+                                }
+                                
+                                if (rec) {
+                                  const { time, notes } = parseRemarks(rec.remarks);
+                                  if (rec.status === "present") {
+                                    return (
+                                      <td key={idx}>
+                                        <div className="grid-attendance-card present">
+                                          <span className="grid-card-status">Present</span>
+                                          <span className="grid-card-time">{time !== "—" ? time : "09:00"}</span>
+                                          {notes && notes !== "—" && (
+                                            <span className="grid-card-notes" title={notes}>{notes}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    );
+                                  } else {
+                                    return (
+                                      <td key={idx}>
+                                        <div className="grid-attendance-card absent">
+                                          <span className="grid-card-status">Absent</span>
+                                          {notes && notes !== "—" && (
+                                            <span className="grid-card-notes" title={notes}>{notes}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                }
+                                
+                                return (
+                                  <td key={idx}>
+                                    <div className="grid-attendance-card none">
+                                      <span className="grid-card-status">—</span>
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           );
                         })}
-                      </div>
-                    </div>
+                      </tbody>
+                    </table>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="status-message">No check-in records found for this criteria.</p>
-          )
-        )}
+                ) : (
+                  <p className="status-message">No faculty members found matching search query.</p>
+                )}
+              </>
+            ) : sheetMode === "monthly" ? (
+              <>
+                <div className="attendance-stats-summary">
+                  <div className="stat-item">
+                    <span className="bullet holiday"></span>
+                    <span>Holiday: {monthlyStats.weekendPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet present"></span>
+                    <span>Checked In: {monthlyStats.presentPct}%</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="bullet absent"></span>
+                    <span>Absent: {monthlyStats.absentPct}%</span>
+                  </div>
+                </div>
 
-        {status && <p className="status-message">{status}</p>}
+                {loadingRecords ? (
+                  <p className="status-message">Loading attendance records...</p>
+                ) : filteredFaculty.length > 0 ? (
+                  <div className="attendance-grid-container">
+                    <table className="attendance-grid-table">
+                      <thead>
+                        <tr>
+                          <th>Staff Profile</th>
+                          {daysInMonth.map((day, idx) => {
+                            const dateNum = day.getDate();
+                            const weekdayStr = day.toLocaleDateString("en-US", { weekday: "narrow" });
+                            return (
+                              <th key={idx} style={{ textAlign: "center", padding: "8px 4px", minWidth: "36px" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>{dateNum}</div>
+                                <div style={{ fontSize: "8px", color: "var(--muted)", fontWeight: 500 }}>{weekdayStr}</div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredFaculty.map((member) => {
+                          const name = facultyName(member);
+                          return (
+                            <tr key={member.faculty_id}>
+                              <td>
+                                <div className="grid-profile-cell">
+                                  <Avatar variant="profile" />
+                                  <div>
+                                    <div className="grid-profile-name">{name}</div>
+                                    <div className="grid-profile-code">Code: {member.employee_code || "N/A"}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              {daysInMonth.map((day, idx) => {
+                                const dateStr = day.toISOString().split("T")[0];
+                                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                
+                                // Find record
+                                const rec = allAttendanceRecords.find(
+                                  (r) => r.faculty_id === member.faculty_id && r.attendance_date === dateStr
+                                );
+                                
+                                if (isWeekend) {
+                                  return (
+                                    <td key={idx} style={{ padding: "4px 2px" }}>
+                                      <div className="grid-attendance-dot holiday" title={`${dateStr}: Weekend`}>
+                                        H
+                                      </div>
+                                    </td>
+                                  );
+                                }
+                                
+                                if (rec) {
+                                  const { time, notes } = parseRemarks(rec.remarks);
+                                  const formattedTime = time !== "—" ? time : "09:00";
+                                  const titleText = `${dateStr}: ${rec.status.toUpperCase()}${rec.status === "present" ? ` at ${formattedTime}` : ""}${notes && notes !== "—" ? ` - ${notes}` : ""}`;
+                                  
+                                  if (rec.status === "present") {
+                                    return (
+                                      <td key={idx} style={{ padding: "4px 2px" }}>
+                                        <div className="grid-attendance-dot present" title={titleText}>
+                                          P
+                                        </div>
+                                      </td>
+                                    );
+                                  } else {
+                                    return (
+                                      <td key={idx} style={{ padding: "4px 2px" }}>
+                                        <div className="grid-attendance-dot absent" title={titleText}>
+                                          A
+                                        </div>
+                                      </td>
+                                    );
+                                  }
+                                }
+                                
+                                return (
+                                  <td key={idx} style={{ padding: "4px 2px" }}>
+                                    <div className="grid-attendance-dot none" title={`${dateStr}: No Record`}>
+                                      —
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="status-message">No faculty members found matching search query.</p>
+                )}
+              </>
+            ) : (
+              /* History Feed mode */
+              <>
+                {loadingRecords ? (
+                  <p className="status-message">Loading audit logs...</p>
+                ) : Object.keys(groupedFeedRecords).length > 0 ? (
+                  <div className="audit-feed">
+                    {Object.entries(groupedFeedRecords).map(([dateStr, dayRecords]) => {
+                      const dayPresentCount = dayRecords.filter((r) => r.status === "present").length;
+                      const dayAbsentCount = dayRecords.filter((r) => r.status === "absent").length;
+
+                      return (
+                        <div key={dateStr} className="audit-date-card" style={{ padding: 0, overflow: "hidden" }}>
+                          <div className="audit-date-header">
+                            <div className="audit-date-title-wrapper" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span className="audit-calendar-icon" aria-hidden="true" style={{ display: "flex", alignItems: "center" }}>
+                                <Icon name="calendar" />
+                              </span>
+                              <h4>{formatDateHeader(dateStr)}</h4>
+                            </div>
+                            <div className="audit-date-stats">
+                              <span className="stats-badge present">{dayPresentCount} Present</span>
+                              {dayAbsentCount > 0 && <span className="stats-badge absent">{dayAbsentCount} Absent</span>}
+                            </div>
+                          </div>
+                          <div className="audit-date-body" style={{ padding: "8px 0" }}>
+                            <div className="audit-log-list">
+                              {dayRecords.map((rec) => {
+                                const name = rec.faculty
+                                  ? `${rec.faculty.first_name} ${rec.faculty.last_name || ""}`.trim()
+                                  : "Faculty Member";
+                                const { time, notes } = parseRemarks(rec.remarks);
+
+                                return (
+                                  <div key={rec.attendance_id} className="audit-log-item">
+                                    <div className="audit-log-faculty-info" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                      <Avatar variant="profile" />
+                                      <div className="audit-log-faculty-meta">
+                                        <span className="faculty-name" style={{ display: "block", fontSize: "14px", fontWeight: 600 }}>{name}</span>
+                                        <span className="faculty-code" style={{ fontSize: "11px", color: "var(--muted)" }}>{rec.faculty?.employee_code || "N/A"}</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="audit-log-status">
+                                      <span className={`status-pill ${rec.status === "present" ? "present" : "absent"}`}>
+                                        {rec.status === "present" ? "Checked In" : "Absent"}
+                                      </span>
+                                    </div>
+
+                                    <div className="audit-log-time" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                      {rec.status === "present" ? (
+                                        <>
+                                          <span className="time-icon" aria-hidden="true" style={{ display: "flex", alignItems: "center" }}>
+                                            <Icon name="clock" />
+                                          </span>
+                                          <span className="time-value">{time}</span>
+                                        </>
+                                      ) : (
+                                        <span className="time-value absent-time" style={{ color: "var(--muted)" }}>—</span>
+                                      )}
+                                    </div>
+
+                                    <div className="audit-log-notes">
+                                      <span className="notes-label" style={{ marginRight: "4px" }}>Notes:</span>
+                                      <span className="notes-value">{notes}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="status-message">No check-in records found for this criteria.</p>
+                )}
+              </>
+            )}
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
 }
+
 
 export function FacultyManagementView() {
   const [faculty, setFaculty] = useState<ApiFaculty[]>([]);
