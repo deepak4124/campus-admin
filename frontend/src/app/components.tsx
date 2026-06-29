@@ -49,6 +49,13 @@ type ApiStudent = {
   admission_date?: string;
 };
 
+function formatLocalDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 type ApiSearchStudentsResponse = {
   results: ApiStudent[];
 };
@@ -951,8 +958,8 @@ export function DashboardView() {
   const [submittingHoliday, setSubmittingHoliday] = useState(false);
   const [holidayStatus, setHolidayStatus] = useState("");
 
-  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
-  const currentMonthStr = useMemo(() => new Date().toISOString().substring(0, 7), []);
+  const todayStr = useMemo(() => formatLocalDateInputValue(), []);
+  const currentMonthStr = useMemo(() => formatLocalDateInputValue().substring(0, 7), []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -1037,6 +1044,33 @@ export function DashboardView() {
       .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
       .slice(0, 5);
   }, [holidays, todayStr]);
+
+  const birthdayStudents = useMemo(() => {
+    const currentMonth = new Date().getMonth() + 1;
+
+    return students
+      .map((student) => {
+        const dob = student.dob?.slice(0, 10);
+        const parts = dob?.split("-");
+        if (!parts || parts.length !== 3) return null;
+
+        const month = parseInt(parts[1], 10);
+        const day = parseInt(parts[2], 10);
+        if (month !== currentMonth || Number.isNaN(day)) return null;
+
+        return {
+          studentId: student.student_id,
+          name: [student.first_name, student.last_name].filter(Boolean).join(" ") || "Student",
+          birthday: `${new Date(2000, month - 1, day).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric"
+          })}`,
+          day
+        };
+      })
+      .filter((student): student is { studentId: string; name: string; birthday: string; day: number } => Boolean(student))
+      .sort((a, b) => a.day - b.day || a.name.localeCompare(b.name));
+  }, [students]);
 
   async function handleAddHoliday(e: FormEvent) {
     e.preventDefault();
@@ -1266,6 +1300,38 @@ export function DashboardView() {
                           </div>
                           <span style={{ fontSize: "13px", fontWeight: 700, color: "#b91c1c" }}>
                             {s.rate}% attendance
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Monthly Birthdays */}
+                <div className="audit-date-card" style={{ padding: "24px" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 700 }}>Student Birthdays This Month</h3>
+                  {birthdayStudents.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>
+                      No student birthdays this month.
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {birthdayStudents.map((student) => (
+                        <div
+                          key={student.studentId}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "10px 14px",
+                            background: "var(--tint)",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border-soft)"
+                          }}
+                        >
+                          <span style={{ fontSize: "13px", fontWeight: 600 }}>{student.name}</span>
+                          <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 500 }}>
+                            {student.birthday}
                           </span>
                         </div>
                       ))}
@@ -1707,7 +1773,7 @@ const iconPaths: Record<IconName, ReactNode> = {
 
 export function StudentAttendanceView() {
   const [students, setStudents] = useState<ApiStudent[]>([]);
-  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [attendanceDate, setAttendanceDate] = useState<string>(formatLocalDateInputValue());
   const [records, setRecords] = useState<Record<string, { status: "present" | "absent"; remarks: string }>>({});
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [status, setStatus] = useState("");
@@ -1833,7 +1899,7 @@ export function StudentAttendanceView() {
     let weekendCount = 0;
 
     weekDays.forEach((day) => {
-      const dateStr = day.toISOString().split("T")[0];
+      const dateStr = formatLocalDateInputValue(day);
       const isWeekend = day.getDay() === 0 || day.getDay() === 6;
       const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
       if (isWeekend || isHoliday) {
@@ -1871,7 +1937,7 @@ export function StudentAttendanceView() {
     let weekendCount = 0;
 
     daysInMonth.forEach((day) => {
-      const dateStr = day.toISOString().split("T")[0];
+      const dateStr = formatLocalDateInputValue(day);
       const isWeekend = day.getDay() === 0 || day.getDay() === 6;
       const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
       if (isWeekend || isHoliday) {
@@ -2209,7 +2275,7 @@ export function StudentAttendanceView() {
                                 </div>
                               </td>
                               {weekDays.map((day, idx) => {
-                                const dateStr = day.toISOString().split("T")[0];
+                                const dateStr = formatLocalDateInputValue(day);
                                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                 
                                 // Find record
@@ -2326,7 +2392,7 @@ export function StudentAttendanceView() {
                                 </div>
                               </td>
                               {daysInMonth.map((day, idx) => {
-                                const dateStr = day.toISOString().split("T")[0];
+                                const dateStr = formatLocalDateInputValue(day);
                                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                 
                                 // Find record
@@ -2415,7 +2481,7 @@ type AuditFacultyRecord = {
 
 export function FacultyAttendanceView() {
   const [faculty, setFaculty] = useState<ApiFaculty[]>([]);
-  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [attendanceDate, setAttendanceDate] = useState<string>(formatLocalDateInputValue());
   const [records, setRecords] = useState<Record<string, { status: "present" | "absent"; checkInTime: string; notes: string }>>({});
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -2558,7 +2624,7 @@ export function FacultyAttendanceView() {
     let weekendCount = 0;
 
     weekDays.forEach((day) => {
-      const dateStr = day.toISOString().split("T")[0];
+      const dateStr = formatLocalDateInputValue(day);
       const isWeekend = day.getDay() === 0 || day.getDay() === 6;
       const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
       if (isWeekend || isHoliday) {
@@ -2593,7 +2659,7 @@ export function FacultyAttendanceView() {
     let weekendCount = 0;
 
     daysInMonth.forEach((day) => {
-      const dateStr = day.toISOString().split("T")[0];
+      const dateStr = formatLocalDateInputValue(day);
       const isWeekend = day.getDay() === 0 || day.getDay() === 6;
       const isHoliday = holidays.some((h) => h.holiday_date === dateStr);
       if (isWeekend || isHoliday) {
@@ -3120,7 +3186,7 @@ export function FacultyAttendanceView() {
                                 </div>
                               </td>
                               {weekDays.map((day, idx) => {
-                                const dateStr = day.toISOString().split("T")[0];
+                                const dateStr = formatLocalDateInputValue(day);
                                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                 
                                 // Find record
@@ -3238,7 +3304,7 @@ export function FacultyAttendanceView() {
                                 </div>
                               </td>
                               {daysInMonth.map((day, idx) => {
-                                const dateStr = day.toISOString().split("T")[0];
+                                const dateStr = formatLocalDateInputValue(day);
                                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                 
                                 // Find record
