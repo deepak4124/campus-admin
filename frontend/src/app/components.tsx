@@ -514,8 +514,72 @@ export function LandingPageView() {
     "Receive follow-up from the school office",
   ];
 
+  const tickerWords = ["Story", "Art", "Music", "Language", "Numbers", "Movement", "Discovery", "Friendship", "Care", "Wonder", "Curiosity", "Play"];
+
+  // Scroll-reveal observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("is-visible");
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -32px 0px" }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  // Smooth inertia scroll (desktop wheel only)
+  useEffect(() => {
+    if (typeof window === "undefined" || "ontouchstart" in window) return;
+
+    let target = window.scrollY;
+    let current = window.scrollY;
+    let raf: number;
+    let isWheeling = false;
+    let wheelTimer: ReturnType<typeof setTimeout>;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      isWheeling = true;
+      clearTimeout(wheelTimer);
+      target = Math.max(
+        0,
+        Math.min(document.documentElement.scrollHeight - window.innerHeight, target + e.deltaY * 0.88)
+      );
+      wheelTimer = setTimeout(() => { isWheeling = false; }, 160);
+    };
+
+    const tick = () => {
+      if (!isWheeling) {
+        target = window.scrollY;
+        current = window.scrollY;
+      } else {
+        const dist = target - current;
+        if (Math.abs(dist) > 0.2) {
+          current += dist * 0.1;
+          document.documentElement.scrollTop = current;
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      cancelAnimationFrame(raf);
+      clearTimeout(wheelTimer);
+    };
+  }, []);
+
   return (
     <main className="landing-page">
+      {/* Risograph grain texture overlay */}
+      <div className="landing-grain" aria-hidden="true" />
+
       <header className="landing-nav" aria-label="Landing page navigation">
         <a className="landing-brand" href="/">
           <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Play School logo" />
@@ -524,11 +588,17 @@ export function LandingPageView() {
         <nav className="landing-nav-actions" aria-label="Primary">
           <a href="#programs">Programs</a>
           <a href="#admissions">Admissions</a>
+          <a className="landing-nav-login" href="/login">Admin Sign In</a>
           <a className="landing-nav-cta" href="/apply">Apply Now</a>
         </nav>
       </header>
 
       <section className="landing-hero">
+        {/* Riso background blobs in hero */}
+        <div className="landing-hero-riso" aria-hidden="true">
+          <div className="landing-hero-riso-blob landing-hero-riso-blob-1" />
+          <div className="landing-hero-riso-blob landing-hero-riso-blob-2" />
+        </div>
         <img className="landing-hero-image" src="/bdps-removebg-preview.png" alt="Blooming Daffodils school identity" />
         <div className="landing-print-mark landing-print-mark-one" aria-hidden="true"></div>
         <div className="landing-print-mark landing-print-mark-two" aria-hidden="true"></div>
@@ -546,23 +616,32 @@ export function LandingPageView() {
         </div>
       </section>
 
+      {/* Marquee ticker strip */}
+      <div className="landing-ticker" aria-hidden="true">
+        <div className="landing-ticker-track">
+          {[...tickerWords, ...tickerWords].map((word, i) => (
+            <span key={i}><b>✦</b> {word}</span>
+          ))}
+        </div>
+      </div>
+
       <section className="landing-section landing-intro" aria-label="School highlights">
-        <div className="landing-stat">
+        <div className="landing-stat reveal">
           <strong>9:30 AM</strong>
           <span>Play Group and Pre KG start time</span>
         </div>
-        <div className="landing-stat">
+        <div className="landing-stat reveal" style={{ transitionDelay: "0.1s" }}>
           <strong>Online</strong>
           <span>Simple admission form for families to begin the process</span>
         </div>
-        <div className="landing-stat">
+        <div className="landing-stat reveal" style={{ transitionDelay: "0.2s" }}>
           <strong>Creative</strong>
           <span>Story, art, music, and exploratory learning rhythm</span>
         </div>
       </section>
 
       <section className="landing-section landing-split" id="programs">
-        <div>
+        <div className="reveal">
           <span className="landing-section-label">Programs</span>
           <h2>Small steps, bright routines, steady growth.</h2>
           <p>
@@ -571,8 +650,12 @@ export function LandingPageView() {
           </p>
         </div>
         <div className="landing-program-grid">
-          {learningPaths.map((item) => (
-            <article className="landing-program-card" key={item.title}>
+          {learningPaths.map((item, index) => (
+            <article
+              className="landing-program-card reveal"
+              key={item.title}
+              style={{ transitionDelay: `${index * 0.13}s` }}
+            >
               <span aria-hidden="true">*</span>
               <h3>{item.title}</h3>
               <p>{item.text}</p>
@@ -581,8 +664,17 @@ export function LandingPageView() {
         </div>
       </section>
 
+      {/* Risograph manifesto band */}
+      <div className="landing-manifesto reveal">
+        <div className="riso-blob riso-blob-1" aria-hidden="true" />
+        <div className="riso-blob riso-blob-2" aria-hidden="true" />
+        <blockquote>
+          Every child deserves a classroom that feels like wonder.
+        </blockquote>
+      </div>
+
       <section className="landing-section landing-admissions" id="admissions">
-        <div className="landing-admissions-copy">
+        <div className="landing-admissions-copy reveal">
           <span className="landing-section-label">Admissions</span>
           <h2>Apply online. We will guide the next steps.</h2>
           <p>
@@ -592,7 +684,11 @@ export function LandingPageView() {
         </div>
         <div className="landing-step-list">
           {admissionSteps.map((step, index) => (
-            <div className="landing-step" key={step}>
+            <div
+              className="landing-step reveal"
+              key={step}
+              style={{ transitionDelay: `${index * 0.11}s` }}
+            >
               <strong>{String(index + 1).padStart(2, "0")}</strong>
               <span>{step}</span>
             </div>
@@ -600,8 +696,17 @@ export function LandingPageView() {
         </div>
       </section>
 
+      {/* CTA block */}
+      <div className="landing-cta reveal">
+        <div className="landing-cta-inner">
+          <h2>Ready to begin? Start your application today.</h2>
+          <a className="landing-button primary" href="/apply">Apply Now</a>
+        </div>
+      </div>
+
       <footer className="landing-footer">
         <span>(c) Blooming Daffodils Play School</span>
+        <a href="/login">School Admin</a>
       </footer>
     </main>
   );
