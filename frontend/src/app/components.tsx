@@ -530,51 +530,6 @@ export function LandingPageView() {
     return () => observer.disconnect();
   }, []);
 
-  // Smooth inertia scroll (desktop wheel only)
-  useEffect(() => {
-    if (typeof window === "undefined" || "ontouchstart" in window) return;
-
-    let target = window.scrollY;
-    let current = window.scrollY;
-    let raf: number;
-    let isWheeling = false;
-    let wheelTimer: ReturnType<typeof setTimeout>;
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      isWheeling = true;
-      clearTimeout(wheelTimer);
-      target = Math.max(
-        0,
-        Math.min(document.documentElement.scrollHeight - window.innerHeight, target + e.deltaY * 0.88)
-      );
-      wheelTimer = setTimeout(() => { isWheeling = false; }, 160);
-    };
-
-    const tick = () => {
-      if (!isWheeling) {
-        target = window.scrollY;
-        current = window.scrollY;
-      } else {
-        const dist = target - current;
-        if (Math.abs(dist) > 0.2) {
-          current += dist * 0.1;
-          document.documentElement.scrollTop = current;
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-
-    window.addEventListener("wheel", onWheel, { passive: false });
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      window.removeEventListener("wheel", onWheel);
-      cancelAnimationFrame(raf);
-      clearTimeout(wheelTimer);
-    };
-  }, []);
-
   return (
     <main className="landing-page">
       {/* Risograph grain texture overlay */}
