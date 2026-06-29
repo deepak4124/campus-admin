@@ -514,6 +514,21 @@ export function LandingPageView() {
     "Receive follow-up from the school office",
   ];
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+          }
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -32px 0px" }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <main className="landing-page">
       <header className="landing-nav" aria-label="Landing page navigation">
@@ -524,6 +539,7 @@ export function LandingPageView() {
         <nav className="landing-nav-actions" aria-label="Primary">
           <a href="#programs">Programs</a>
           <a href="#admissions">Admissions</a>
+          <a className="landing-nav-login" href="/login">Admin Sign In</a>
           <a className="landing-nav-cta" href="/apply">Apply Now</a>
         </nav>
       </header>
@@ -547,22 +563,22 @@ export function LandingPageView() {
       </section>
 
       <section className="landing-section landing-intro" aria-label="School highlights">
-        <div className="landing-stat">
+        <div className="landing-stat reveal">
           <strong>9:30 AM</strong>
           <span>Play Group and Pre KG start time</span>
         </div>
-        <div className="landing-stat">
+        <div className="landing-stat reveal" style={{ transitionDelay: "0.1s" }}>
           <strong>Online</strong>
           <span>Simple admission form for families to begin the process</span>
         </div>
-        <div className="landing-stat">
+        <div className="landing-stat reveal" style={{ transitionDelay: "0.2s" }}>
           <strong>Creative</strong>
           <span>Story, art, music, and exploratory learning rhythm</span>
         </div>
       </section>
 
       <section className="landing-section landing-split" id="programs">
-        <div>
+        <div className="reveal">
           <span className="landing-section-label">Programs</span>
           <h2>Small steps, bright routines, steady growth.</h2>
           <p>
@@ -571,8 +587,12 @@ export function LandingPageView() {
           </p>
         </div>
         <div className="landing-program-grid">
-          {learningPaths.map((item) => (
-            <article className="landing-program-card" key={item.title}>
+          {learningPaths.map((item, index) => (
+            <article
+              className="landing-program-card reveal"
+              key={item.title}
+              style={{ transitionDelay: `${index * 0.13}s` }}
+            >
               <span aria-hidden="true">*</span>
               <h3>{item.title}</h3>
               <p>{item.text}</p>
@@ -582,7 +602,7 @@ export function LandingPageView() {
       </section>
 
       <section className="landing-section landing-admissions" id="admissions">
-        <div className="landing-admissions-copy">
+        <div className="landing-admissions-copy reveal">
           <span className="landing-section-label">Admissions</span>
           <h2>Apply online. We will guide the next steps.</h2>
           <p>
@@ -592,7 +612,11 @@ export function LandingPageView() {
         </div>
         <div className="landing-step-list">
           {admissionSteps.map((step, index) => (
-            <div className="landing-step" key={step}>
+            <div
+              className="landing-step reveal"
+              key={step}
+              style={{ transitionDelay: `${index * 0.11}s` }}
+            >
               <strong>{String(index + 1).padStart(2, "0")}</strong>
               <span>{step}</span>
             </div>
