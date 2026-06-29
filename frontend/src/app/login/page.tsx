@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     setLoading(true);
     setStatus("Signing in...");
-    
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -37,30 +37,41 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="login-page">
-      <section className="login-panel" aria-label="Admin login">
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "8px" }}>
-          <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" style={{ width: "80px", height: "80px", borderRadius: "16px", objectFit: "contain", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} />
-          <div style={{ textAlign: "center" }}>
-            <h1 className="brand-title" style={{ fontSize: "28px", margin: 0 }}>Blooming Daffodils</h1>
-            <p className="brand-subtitle" style={{ marginTop: "4px" }}>Administrative Portal</p>
+    <main className="riso-login-page">
+      <div className="landing-grain" aria-hidden="true" />
+      <div className="riso-login-blob riso-login-blob-1" aria-hidden="true" />
+      <div className="riso-login-blob riso-login-blob-2" aria-hidden="true" />
+
+      <section className="riso-login-panel" aria-label="Admin login">
+        <div className="riso-login-brand">
+          <div className="riso-login-logo-wrap">
+            <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" />
+          </div>
+          <div>
+            <h1 className="riso-login-title">Admin Portal</h1>
+            <p className="riso-login-sub">Blooming Daffodils Play School</p>
           </div>
         </div>
 
-        <form className="login-form" onSubmit={login}>
-          <label className="form-field">
-            <span className="field-label">Email</span>
-            <input name="email" placeholder="admin@cleanpaper.school" type="email" />
+        <form className="riso-login-form" onSubmit={login}>
+          <label className="riso-login-field">
+            <span>Email</span>
+            <input name="email" placeholder="admin@school.edu" type="email" />
           </label>
-          <label className="form-field">
-            <span className="field-label">Password</span>
+          <label className="riso-login-field">
+            <span>Password</span>
             <input name="password" placeholder="Enter password" type="password" />
           </label>
-          <button className="primary-button" type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
+          <button className="riso-login-submit" type="submit" disabled={loading}>
+            {loading ? "Signing in…" : "Sign In"}
           </button>
-          {status ? <p className="form-status">{status}</p> : null}
+          {status ? <p className="riso-login-status">{status}</p> : null}
         </form>
+
+        <div className="riso-login-footer">
+          <a className="riso-login-back" href="/">← Back to home</a>
+          <p className="riso-login-notice">This portal is for school staff only.</p>
+        </div>
       </section>
     </main>
   );
