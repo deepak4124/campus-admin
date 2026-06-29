@@ -847,7 +847,7 @@ button {
 
   .landing-hero::before {
     bottom: auto;
-    height: 320px;
+    height: 262px;
     left: 24px;
     top: 128px;
     width: calc(100% - 48px);
@@ -855,13 +855,23 @@ button {
 
   .landing-hero-image {
     grid-column: 1;
-    height: 320px;
-    margin: 0 auto 48px;
+    height: 270px;
+    margin: 0 auto 40px;
     width: min(100%, 520px);
   }
 
   .landing-hero-copy {
     grid-column: 1;
+    text-align: center;
+  }
+
+  .landing-hero p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .landing-hero-actions {
+    justify-content: center;
   }
 
   .landing-print-mark-one {
@@ -938,13 +948,15 @@ button {
   }
 
   .landing-hero::before {
+    height: 202px;
     left: 16px;
     top: 108px;
     width: calc(100% - 32px);
   }
 
   .landing-hero-image {
-    height: 280px;
+    height: 210px;
+    margin-bottom: 32px;
   }
 
   .landing-hero h1 {
