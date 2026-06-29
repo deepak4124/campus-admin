@@ -159,6 +159,20 @@ button {
   transform: translate(4px, 4px);
 }
 
+.landing-nav-hamburger {
+  align-items: center;
+  background: none;
+  border: 3px solid var(--landing-ink);
+  color: var(--landing-ink);
+  cursor: pointer;
+  display: none;
+  flex-shrink: 0;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px;
+}
+
 .landing-hero {
   align-items: center;
   display: grid;
@@ -793,32 +807,49 @@ button {
 
 @media (max-width: 980px) {
   .landing-nav {
-    align-items: stretch;
-    flex-direction: column;
     left: 14px;
-    min-height: 0;
     right: 14px;
   }
 
+  .landing-nav-hamburger {
+    display: flex;
+  }
+
   .landing-nav-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: rgba(255, 244, 216, 0.98);
+    border: 3px solid var(--landing-ink);
+    border-top: none;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    left: -3px;
+    padding: 12px;
+    position: absolute;
+    right: -3px;
+    top: 100%;
+    z-index: 30;
+  }
+
+  .landing-nav.is-open .landing-nav-actions {
+    display: flex;
   }
 
   .landing-nav-actions a {
+    justify-content: center;
     min-width: 0;
+    text-align: center;
   }
 
   .landing-hero {
     grid-template-columns: 1fr;
-    padding: 220px 24px 56px;
+    padding: 120px 24px 56px;
   }
 
   .landing-hero::before {
     bottom: auto;
     height: 320px;
     left: 24px;
-    top: 228px;
+    top: 128px;
     width: calc(100% - 48px);
   }
 
@@ -835,7 +866,7 @@ button {
 
   .landing-print-mark-one {
     right: 32px;
-    top: 220px;
+    top: 120px;
   }
 
   .landing-print-mark-two {
@@ -903,12 +934,12 @@ button {
 
   .landing-hero {
     min-height: auto;
-    padding: 214px 16px 48px;
+    padding: 100px 16px 48px;
   }
 
   .landing-hero::before {
     left: 16px;
-    top: 222px;
+    top: 108px;
     width: calc(100% - 32px);
   }
 
