@@ -502,6 +502,8 @@ export function FeeManagementView() {
 }
 
 export function LandingPageView() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const learningPaths = [
     { title: "Play Group", text: "Gentle routines, sensory exploration, and first friendships." },
     { title: "Pre KG", text: "Language, numbers, art, movement, and confident classroom habits." },
@@ -535,16 +537,33 @@ export function LandingPageView() {
       {/* Risograph grain texture overlay */}
       <div className="landing-grain" aria-hidden="true" />
 
-      <header className="landing-nav" aria-label="Landing page navigation">
+      <header className={`landing-nav${mobileMenuOpen ? " is-open" : ""}`} aria-label="Landing page navigation">
         <a className="landing-brand" href="/">
           <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Play School logo" />
           <span>Blooming Daffodils</span>
         </a>
+        <button
+          className="landing-nav-hamburger"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+          type="button"
+        >
+          {mobileMenuOpen ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
         <nav className="landing-nav-actions" aria-label="Primary">
-          <a href="#programs">Programs</a>
-          <a href="#admissions">Admissions</a>
-          <a className="landing-nav-login" href="/login">Admin Sign In</a>
-          <a className="landing-nav-cta" href="/apply">Apply Now</a>
+          <a href="#programs" onClick={() => setMobileMenuOpen(false)}>Programs</a>
+          <a href="#admissions" onClick={() => setMobileMenuOpen(false)}>Admissions</a>
+          <a className="landing-nav-login" href="/login" onClick={() => setMobileMenuOpen(false)}>Admin Sign In</a>
+          <a className="landing-nav-cta" href="/apply" onClick={() => setMobileMenuOpen(false)}>Apply Now</a>
         </nav>
       </header>
 
