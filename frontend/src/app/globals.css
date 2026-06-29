@@ -969,6 +969,16 @@ button {
     flex-direction: column;
     gap: 10px;
   }
+
+  .landing-cta-inner .landing-button {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .landing-cta-inner {
+    gap: 20px;
+  }
 }
 
 .icon {
@@ -2060,49 +2070,255 @@ tr:last-child td {
   box-shadow: none;
 }
 
-/* Login Page Styles */
-.login-page {
+/* Login Page — Neobrutalism + Risograph */
+.riso-login-page {
+  --login-ink: #17120f;
+  --login-paper: #f7e7c8;
+  --login-cream: #fff4d8;
+  --login-orange: #e96f35;
+  --login-teal: #1f8f8a;
+  --login-maroon: #7b2d33;
+  --login-yellow: #f4b942;
   align-items: center;
-  background: var(--tint);
+  background:
+    radial-gradient(circle at 12px 12px, rgba(23, 18, 15, 0.12) 1px, transparent 1.4px),
+    linear-gradient(180deg, var(--login-paper), #f9ddb7 58%, #f3c28e);
+  background-size: 18px 18px, auto;
+  color: var(--login-ink);
   display: flex;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  justify-content: center;
   min-height: 100vh;
+  overflow: hidden;
   padding: 24px;
+  position: relative;
 }
 
-.login-panel {
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: none; /* Flat minimalist layout */
+.riso-login-blob {
+  border-radius: 60% 40% 70% 30% / 40% 60% 40% 60%;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  position: absolute;
+}
+
+.riso-login-blob-1 {
+  animation: blob-drift 9s ease-in-out infinite alternate;
+  background: rgba(31, 143, 138, 0.22);
+  height: 420px;
+  right: -80px;
+  top: -60px;
+  width: 400px;
+}
+
+.riso-login-blob-2 {
+  animation: blob-drift 12s ease-in-out infinite alternate-reverse;
+  background: rgba(233, 111, 53, 0.18);
+  bottom: -80px;
+  height: 380px;
+  left: -60px;
+  width: 340px;
+}
+
+.riso-login-panel {
+  background: var(--login-cream);
+  border: 4px solid var(--login-ink);
+  box-shadow: 10px 10px 0 var(--login-ink);
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  margin: 0 auto;
-  max-width: 400px;
+  gap: 28px;
+  max-width: 420px;
   padding: 40px;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+.riso-login-panel::after {
+  background-image: radial-gradient(circle, rgba(23, 18, 15, 0.15) 1.3px, transparent 1.3px);
+  background-size: 10px 10px;
+  bottom: 0;
+  content: '';
+  left: 0;
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.riso-login-brand {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.riso-login-logo-wrap {
+  background: var(--login-cream);
+  border: 3px solid var(--login-ink);
+  box-shadow: 4px 4px 0 var(--login-orange);
+  flex-shrink: 0;
+  height: 72px;
+  padding: 6px;
+  width: 72px;
+}
+
+.riso-login-logo-wrap img {
+  height: 100%;
+  object-fit: contain;
   width: 100%;
 }
 
-.login-panel h1 {
-  font-size: 28px;
-  line-height: 1.2;
+.riso-login-title {
+  color: var(--login-ink);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
   margin: 0 0 4px;
+  text-shadow: 3px 3px 0 var(--login-orange);
+  text-transform: uppercase;
 }
 
-.login-panel p {
-  font-size: 14px;
-  color: var(--muted);
+.riso-login-sub {
+  color: var(--login-ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   margin: 0;
+  opacity: 0.7;
+  text-transform: uppercase;
 }
 
-.login-form {
+.riso-login-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.login-form .primary-button {
-  margin-top: 8px;
+.riso-login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.riso-login-field span {
+  color: var(--login-maroon);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.riso-login-field input {
+  background: #fffef6;
+  border: 3px solid var(--login-ink);
+  border-radius: 0;
+  color: var(--login-ink);
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  min-height: 48px;
+  outline: none;
+  padding: 0 14px;
+  transition: box-shadow 0.15s ease;
+  width: 100%;
+}
+
+.riso-login-field input:focus {
+  box-shadow: 4px 4px 0 var(--login-teal);
+}
+
+.riso-login-submit {
+  background: var(--login-teal);
+  border: 3px solid var(--login-ink);
+  box-shadow: 5px 5px 0 var(--login-ink);
+  color: #fffef6;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+  min-height: 52px;
+  text-transform: uppercase;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  width: 100%;
+}
+
+.riso-login-submit:hover:not(:disabled) {
+  box-shadow: 2px 2px 0 var(--login-ink);
+  transform: translate(3px, 3px);
+}
+
+.riso-login-submit:disabled {
+  opacity: 0.6;
+}
+
+.riso-login-status {
+  border: 2px solid var(--login-maroon);
+  color: var(--login-maroon);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 4px 0 0;
+  padding: 10px 14px;
+}
+
+.riso-login-footer {
+  align-items: center;
+  border-top: 2px solid rgba(23, 18, 15, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.riso-login-back {
+  background: var(--login-yellow);
+  border: 3px solid var(--login-ink);
+  box-shadow: 4px 4px 0 var(--login-ink);
+  color: var(--login-ink);
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  padding: 9px 20px;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.riso-login-back:hover {
+  box-shadow: 2px 2px 0 var(--login-ink);
+  transform: translate(2px, 2px);
+}
+
+.riso-login-notice {
+  color: var(--login-ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin: 0;
+  opacity: 0.5;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  .riso-login-panel {
+    box-shadow: 6px 6px 0 var(--login-ink);
+    padding: 28px 20px;
+  }
+
+  .riso-login-title {
+    font-size: 20px;
+    text-shadow: 2px 2px 0 var(--login-orange);
+  }
+
+  .riso-login-logo-wrap {
+    height: 56px;
+    width: 56px;
+  }
 }
 
 /* Admin Placeholder Views */
@@ -2949,9 +3165,11 @@ tr:last-child td {
   }
 
   .admission-top-bar {
+    display: flex;
     flex-direction: column;
     gap: 16px;
     text-align: center;
+    align-items: center;
   }
 }
 
@@ -3433,6 +3651,18 @@ tr:last-child td {
   
   .modal-body {
     max-height: calc(100vh - 80px) !important;
+  }
+
+  /* Admission form contact row stacks on small screens */
+  .contact-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .section-body {
+    padding: 16px !important;
   }
 
   /* Admin placeholder sections */
