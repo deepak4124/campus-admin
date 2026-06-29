@@ -40,7 +40,7 @@ export default function LoginPage() {
     <main className="login-page">
       <section className="login-panel" aria-label="Admin login">
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "8px" }}>
-          <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" style={{ width: "80px", height: "80px", borderRadius: "16px", objectFit: "cover", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} />
+          <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" style={{ width: "80px", height: "80px", borderRadius: "16px", objectFit: "contain", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} />
           <div style={{ textAlign: "center" }}>
             <h1 className="brand-title" style={{ fontSize: "28px", margin: 0 }}>Blooming Daffodils</h1>
             <p className="brand-subtitle" style={{ marginTop: "4px" }}>Administrative Portal</p>

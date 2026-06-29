@@ -202,7 +202,7 @@ export function DashboardLayout({ children, title, className = "" }: { children:
 
       <aside className={`fee-sidebar ${isSidebarOpen ? "open" : ""}`}>
         <div className="fee-brand" style={{ position: "relative", display: "flex", flexDirection: "column", gap: "16px", marginBottom: "8px" }}>
-          <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover" }} />
+          <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "contain" }} />
           <div>
             <h1 className="brand-title">Blooming Daffodils</h1>
             <p className="brand-subtitle">Administrative Portal</p>
@@ -498,6 +498,112 @@ export function FeeManagementView() {
             </form>
           </section>
     </DashboardLayout>
+  );
+}
+
+export function LandingPageView() {
+  const learningPaths = [
+    { title: "Play Group", text: "Gentle routines, sensory exploration, and first friendships." },
+    { title: "Pre KG", text: "Language, numbers, art, movement, and confident classroom habits." },
+    { title: "Creative Studio", text: "Color, craft, music, stories, and hands-on discovery every week." },
+  ];
+
+  const admissionSteps = [
+    "Submit the online application",
+    "Share student and parent details",
+    "Receive follow-up from the school office",
+  ];
+
+  return (
+    <main className="landing-page">
+      <header className="landing-nav" aria-label="Landing page navigation">
+        <a className="landing-brand" href="/">
+          <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Play School logo" />
+          <span>Blooming Daffodils</span>
+        </a>
+        <nav className="landing-nav-actions" aria-label="Primary">
+          <a href="#programs">Programs</a>
+          <a href="#admissions">Admissions</a>
+          <a className="landing-nav-cta" href="/apply">Apply Now</a>
+        </nav>
+      </header>
+
+      <section className="landing-hero">
+        <img className="landing-hero-image" src="/bdps-removebg-preview.png" alt="Blooming Daffodils school identity" />
+        <div className="landing-print-mark landing-print-mark-one" aria-hidden="true"></div>
+        <div className="landing-print-mark landing-print-mark-two" aria-hidden="true"></div>
+        <div className="landing-hero-copy">
+          <span className="landing-kicker">Admissions open for early learners</span>
+          <h1>Where first lessons feel like creative play.</h1>
+          <p>
+            Blooming Daffodils Play School brings children into a warm routine of art, language,
+            discovery, movement, and joyful classroom confidence.
+          </p>
+          <div className="landing-hero-actions">
+            <a className="landing-button primary" href="/apply">Start Application</a>
+            <a className="landing-button secondary" href="#admissions">View Process</a>
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-section landing-intro" aria-label="School highlights">
+        <div className="landing-stat">
+          <strong>9:30 AM</strong>
+          <span>Play Group and Pre KG start time</span>
+        </div>
+        <div className="landing-stat">
+          <strong>Online</strong>
+          <span>Simple admission form for families to begin the process</span>
+        </div>
+        <div className="landing-stat">
+          <strong>Creative</strong>
+          <span>Story, art, music, and exploratory learning rhythm</span>
+        </div>
+      </section>
+
+      <section className="landing-section landing-split" id="programs">
+        <div>
+          <span className="landing-section-label">Programs</span>
+          <h2>Small steps, bright routines, steady growth.</h2>
+          <p>
+            The school experience is built for young children who need care, repetition,
+            independence, and a little wonder in every day.
+          </p>
+        </div>
+        <div className="landing-program-grid">
+          {learningPaths.map((item) => (
+            <article className="landing-program-card" key={item.title}>
+              <span aria-hidden="true">*</span>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-section landing-admissions" id="admissions">
+        <div className="landing-admissions-copy">
+          <span className="landing-section-label">Admissions</span>
+          <h2>Apply online. We will guide the next steps.</h2>
+          <p>
+            Families can begin admission with a clear online form. Once submitted, the school office
+            reviews the details and follows up with document and fee guidance.
+          </p>
+        </div>
+        <div className="landing-step-list">
+          {admissionSteps.map((step, index) => (
+            <div className="landing-step" key={step}>
+              <strong>{String(index + 1).padStart(2, "0")}</strong>
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="landing-footer">
+        <span>(c) Blooming Daffodils Play School</span>
+      </footer>
+    </main>
   );
 }
 
@@ -1383,12 +1489,12 @@ export function DashboardView() {
 function AdmissionTopBar() {
   return (
     <header className="admission-top-bar">
-      <div className="brand-logo">
-        <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" className="school-logo" />
+      <a href="/" className="back-button">
+        Back
+      </a>
+      <a href="/" className="brand-logo">
+        <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" className="school-logo" />
         <span>Blooming Daffodils</span>
-      </div>
-      <a href="/login" className="signin-btn">
-        Sign In
       </a>
     </header>
   );

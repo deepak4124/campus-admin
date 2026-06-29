@@ -5,7 +5,7 @@ export const metadata = {
   title: "School Admin Panel",
   description: "Admin portal for school operations.",
   icons: {
-    icon: "/bdps logo.jpeg",
+    icon: "/bdps-removebg-preview.png",
   }
 };
 
