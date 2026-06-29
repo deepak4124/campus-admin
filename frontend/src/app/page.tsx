@@ -1,9 +1,5 @@
-import { AdmissionFormView } from "./components";
+import { LandingPageView } from "./components";
 
-export default function AdmissionPage() {
-  return (
-    <main>
-      <AdmissionFormView />
-    </main>
-  );
+export default function HomePage() {
+  return <LandingPageView />;
 }

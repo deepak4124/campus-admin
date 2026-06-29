@@ -202,7 +202,7 @@ export function DashboardLayout({ children, title, className = "" }: { children:
 
       <aside className={`fee-sidebar ${isSidebarOpen ? "open" : ""}`}>
         <div className="fee-brand" style={{ position: "relative", display: "flex", flexDirection: "column", gap: "16px", marginBottom: "8px" }}>
-          <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover" }} />
+          <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "contain" }} />
           <div>
             <h1 className="brand-title">Blooming Daffodils</h1>
             <p className="brand-subtitle">Administrative Portal</p>
@@ -498,6 +498,172 @@ export function FeeManagementView() {
             </form>
           </section>
     </DashboardLayout>
+  );
+}
+
+export function LandingPageView() {
+  const learningPaths = [
+    { title: "Play Group", text: "Gentle routines, sensory exploration, and first friendships." },
+    { title: "Pre KG", text: "Language, numbers, art, movement, and confident classroom habits." },
+    { title: "Creative Studio", text: "Color, craft, music, stories, and hands-on discovery every week." },
+  ];
+
+  const admissionSteps = [
+    "Submit the online application",
+    "Share student and parent details",
+    "Receive follow-up from the school office",
+  ];
+
+  const tickerWords = ["Story", "Art", "Music", "Language", "Numbers", "Movement", "Discovery", "Friendship", "Care", "Wonder", "Curiosity", "Play"];
+
+  // Scroll-reveal observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("is-visible");
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -32px 0px" }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <main className="landing-page">
+      {/* Risograph grain texture overlay */}
+      <div className="landing-grain" aria-hidden="true" />
+
+      <header className="landing-nav" aria-label="Landing page navigation">
+        <a className="landing-brand" href="/">
+          <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Play School logo" />
+          <span>Blooming Daffodils</span>
+        </a>
+        <nav className="landing-nav-actions" aria-label="Primary">
+          <a href="#programs">Programs</a>
+          <a href="#admissions">Admissions</a>
+          <a className="landing-nav-login" href="/login">Admin Sign In</a>
+          <a className="landing-nav-cta" href="/apply">Apply Now</a>
+        </nav>
+      </header>
+
+      <section className="landing-hero">
+        {/* Riso background blobs in hero */}
+        <div className="landing-hero-riso" aria-hidden="true">
+          <div className="landing-hero-riso-blob landing-hero-riso-blob-1" />
+          <div className="landing-hero-riso-blob landing-hero-riso-blob-2" />
+        </div>
+        <img className="landing-hero-image" src="/bdps-removebg-preview.png" alt="Blooming Daffodils school identity" />
+        <div className="landing-print-mark landing-print-mark-one" aria-hidden="true"></div>
+        <div className="landing-print-mark landing-print-mark-two" aria-hidden="true"></div>
+        <div className="landing-hero-copy">
+          <span className="landing-kicker">Admissions open for early learners</span>
+          <h1>Where first lessons feel like creative play.</h1>
+          <p>
+            Blooming Daffodils Play School brings children into a warm routine of art, language,
+            discovery, movement, and joyful classroom confidence.
+          </p>
+          <div className="landing-hero-actions">
+            <a className="landing-button primary" href="/apply">Start Application</a>
+            <a className="landing-button secondary" href="#admissions">View Process</a>
+          </div>
+        </div>
+      </section>
+
+      {/* Marquee ticker strip */}
+      <div className="landing-ticker" aria-hidden="true">
+        <div className="landing-ticker-track">
+          {[...tickerWords, ...tickerWords].map((word, i) => (
+            <span key={i}><b>✦</b> {word}</span>
+          ))}
+        </div>
+      </div>
+
+      <section className="landing-section landing-intro" aria-label="School highlights">
+        <div className="landing-stat reveal">
+          <strong>9:30 AM</strong>
+          <span>Play Group and Pre KG start time</span>
+        </div>
+        <div className="landing-stat reveal" style={{ transitionDelay: "0.1s" }}>
+          <strong>Online</strong>
+          <span>Simple admission form for families to begin the process</span>
+        </div>
+        <div className="landing-stat reveal" style={{ transitionDelay: "0.2s" }}>
+          <strong>Creative</strong>
+          <span>Story, art, music, and exploratory learning rhythm</span>
+        </div>
+      </section>
+
+      <section className="landing-section landing-split" id="programs">
+        <div className="reveal">
+          <span className="landing-section-label">Programs</span>
+          <h2>Small steps, bright routines, steady growth.</h2>
+          <p>
+            The school experience is built for young children who need care, repetition,
+            independence, and a little wonder in every day.
+          </p>
+        </div>
+        <div className="landing-program-grid">
+          {learningPaths.map((item, index) => (
+            <article
+              className="landing-program-card reveal"
+              key={item.title}
+              style={{ transitionDelay: `${index * 0.13}s` }}
+            >
+              <span aria-hidden="true">*</span>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* Risograph manifesto band */}
+      <div className="landing-manifesto reveal">
+        <div className="riso-blob riso-blob-1" aria-hidden="true" />
+        <div className="riso-blob riso-blob-2" aria-hidden="true" />
+        <blockquote>
+          Every child deserves a classroom that feels like wonder.
+        </blockquote>
+      </div>
+
+      <section className="landing-section landing-admissions" id="admissions">
+        <div className="landing-admissions-copy reveal">
+          <span className="landing-section-label">Admissions</span>
+          <h2>Apply online. We will guide the next steps.</h2>
+          <p>
+            Families can begin admission with a clear online form. Once submitted, the school office
+            reviews the details and follows up with document and fee guidance.
+          </p>
+        </div>
+        <div className="landing-step-list">
+          {admissionSteps.map((step, index) => (
+            <div
+              className="landing-step reveal"
+              key={step}
+              style={{ transitionDelay: `${index * 0.11}s` }}
+            >
+              <strong>{String(index + 1).padStart(2, "0")}</strong>
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA block */}
+      <div className="landing-cta reveal">
+        <div className="landing-cta-inner">
+          <h2>Ready to begin? Start your application today.</h2>
+          <a className="landing-button primary" href="/apply">Apply Now</a>
+        </div>
+      </div>
+
+      <footer className="landing-footer">
+        <span>(c) Blooming Daffodils Play School</span>
+        <a href="/login">School Admin</a>
+      </footer>
+    </main>
   );
 }
 
@@ -1383,12 +1549,12 @@ export function DashboardView() {
 function AdmissionTopBar() {
   return (
     <header className="admission-top-bar">
-      <div className="brand-logo">
-        <img src="/bdps logo.jpeg" alt="Blooming Daffodils Logo" className="school-logo" />
+      <a href="/" className="back-button">
+        Back
+      </a>
+      <a href="/" className="brand-logo">
+        <img src="/bdps-removebg-preview.png" alt="Blooming Daffodils Logo" className="school-logo" />
         <span>Blooming Daffodils</span>
-      </div>
-      <a href="/login" className="signin-btn">
-        Sign In
       </a>
     </header>
   );
