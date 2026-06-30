@@ -3808,3 +3808,596 @@ tr:last-child td {
 }
 
 
+/* ============================================================
+   ADMIN NEOBRUTALISM / RISOGRAPH THEME
+   Overrides the flat minimalist defaults to match the landing
+   page's warm paper palette, bold borders, and hard shadows.
+   ============================================================ */
+
+.fee-shell {
+  /* Riso-specific palette vars */
+  --riso-ink:    #17120f;
+  --riso-orange: #e96f35;
+  --riso-teal:   #1f8f8a;
+  --riso-maroon: #7b2d33;
+  --riso-yellow: #f4b942;
+  --riso-paper:  #f7e7c8;
+  --riso-cream:  #fff4d8;
+
+  /* Override the root design tokens so every var(--paper) / var(--ink)
+     reference inside the admin shell picks up the warm palette */
+  --ink:         #17120f;
+  --paper:       #fff4d8;
+  --tint:        #f7e7c8;
+  --surface:     #f7e7c8;
+  --border:      rgba(23, 18, 15, 0.42);
+  --border-soft: rgba(23, 18, 15, 0.14);
+  --muted:       #7a5742;
+  --accent:      #1f8f8a;
+  --accent-strong: #176966;
+  --highlight:   rgba(233, 111, 53, 0.15);
+
+  /* Warm paper background with registration-dot grid — same as landing */
+  background:
+    radial-gradient(circle at 12px 12px, rgba(23, 18, 15, 0.12) 1px, transparent 1.4px),
+    linear-gradient(180deg, #f7e7c8, #f9ddb7 58%, #f3c28e);
+  background-attachment: fixed;
+  background-size: 18px 18px, auto;
+  color: var(--ink);
+  font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+/* Grain overlay — same SVG pattern as .landing-grain */
+.fee-shell::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.76' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  bottom: 0;
+  content: '';
+  left: 0;
+  mix-blend-mode: overlay;
+  opacity: 0.05;
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 600;
+}
+
+/* ── Sidebar ─────────────────────────────────────────── */
+
+.fee-shell .fee-sidebar {
+  background: var(--riso-cream);
+  border-right: 3px solid var(--riso-ink);
+}
+
+.fee-shell .brand-title {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.fee-shell .brand-subtitle {
+  color: var(--riso-maroon);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.fee-shell .nav-section-title {
+  color: var(--riso-maroon);
+  letter-spacing: 0.1em;
+}
+
+.fee-shell .fee-nav a {
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  color: rgba(23, 18, 15, 0.6);
+  font-weight: 700;
+  min-height: 42px;
+  transition: all 0.15s ease;
+}
+
+.fee-shell .fee-nav a:hover {
+  background: rgba(233, 111, 53, 0.08);
+  border-left-color: rgba(233, 111, 53, 0.35);
+  color: var(--riso-ink);
+}
+
+.fee-shell .fee-nav a.active {
+  background: rgba(233, 111, 53, 0.13);
+  border-left-color: var(--riso-orange);
+  border-radius: 0 6px 6px 0;
+  color: var(--riso-ink);
+  font-weight: 900;
+}
+
+/* ── Top bar ─────────────────────────────────────────── */
+
+.fee-shell .fee-topbar {
+  background: rgba(255, 244, 216, 0.97);
+  border-bottom: 3px solid var(--riso-ink);
+}
+
+.fee-shell .fee-topbar h2 {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.fee-shell .top-divider {
+  background: rgba(23, 18, 15, 0.25);
+}
+
+/* ── Hamburger / sidebar-close ───────────────────────── */
+
+.fee-shell .hamburger-menu-btn {
+  background: var(--riso-yellow);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 2px 2px 0 var(--riso-ink);
+  height: 42px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  width: 42px;
+}
+
+.fee-shell .hamburger-menu-btn:hover {
+  background: var(--riso-yellow);
+  box-shadow: 1px 1px 0 var(--riso-ink);
+  transform: translate(1px, 1px);
+}
+
+.fee-shell .sidebar-close-btn {
+  background: var(--riso-yellow);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 2px 2px 0 var(--riso-ink);
+  color: var(--riso-ink);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.fee-shell .sidebar-overlay {
+  backdrop-filter: none;
+  background: rgba(23, 18, 15, 0.35);
+}
+
+/* ── Header profile card ─────────────────────────────── */
+
+.fee-shell .header-profile-card {
+  background: var(--riso-cream);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 var(--riso-ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fee-shell .header-profile-card:hover {
+  background: var(--riso-cream);
+  box-shadow: 1px 1px 0 var(--riso-ink);
+  transform: translate(2px, 2px);
+}
+
+.fee-shell .header-profile-card .avatar-wrapper {
+  background: var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .header-profile-card .profile-sub {
+  color: var(--riso-maroon);
+}
+
+.fee-shell .icon-button {
+  border: 2px solid transparent;
+  border-radius: 0;
+  transition: all 0.15s ease;
+}
+
+.fee-shell .icon-button:hover {
+  background: rgba(233, 111, 53, 0.1);
+  border-color: var(--riso-orange);
+}
+
+/* ── Cards ───────────────────────────────────────────── */
+
+.fee-shell .audit-date-card,
+.fee-shell .payment-history,
+.fee-shell .student-card,
+.fee-shell .faculty-card,
+.fee-shell .student-card-directory {
+  background: var(--paper);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 6px 6px 0 var(--riso-ink);
+}
+
+.fee-shell .payment-form,
+.fee-shell .audit-header-section,
+.fee-shell .attendance-filters,
+.fee-shell .attendance-stats-summary {
+  background: var(--paper);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--riso-ink);
+}
+
+.fee-shell .attendance-table-container {
+  background: var(--paper);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--riso-ink);
+}
+
+.fee-shell .attendance-table-container table {
+  border: 0;
+  border-radius: 0;
+}
+
+.fee-shell .admin-placeholder section {
+  background: var(--paper);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 6px 6px 0 var(--riso-ink);
+}
+
+/* ── Tables ──────────────────────────────────────────── */
+
+.fee-shell table {
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell th {
+  background: var(--riso-paper);
+  border-bottom: 2px solid var(--riso-ink);
+  color: var(--riso-maroon);
+}
+
+.fee-shell tr:hover td {
+  background: rgba(244, 185, 66, 0.1);
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+
+.fee-shell .primary-button {
+  background: var(--riso-teal);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--riso-ink);
+  color: #fffef6;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 900;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fee-shell .primary-button:hover:not(:disabled) {
+  background: var(--riso-teal);
+  border-color: var(--riso-ink);
+  box-shadow: 2px 2px 0 var(--riso-ink);
+  transform: translate(2px, 2px);
+}
+
+.fee-shell .primary-button.btn-not-ready {
+  background: var(--riso-paper) !important;
+  border-color: rgba(23, 18, 15, 0.28) !important;
+  box-shadow: 2px 2px 0 rgba(23, 18, 15, 0.18) !important;
+  color: rgba(23, 18, 15, 0.38) !important;
+  opacity: 1;
+}
+
+.fee-shell .primary-button.btn-ready {
+  background: var(--riso-teal) !important;
+  border-color: var(--riso-ink) !important;
+  box-shadow: 4px 4px 0 var(--riso-ink) !important;
+  color: #fffef6 !important;
+}
+
+.fee-shell .secondary-button {
+  background: var(--riso-yellow);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--riso-ink);
+  color: var(--riso-ink);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 900;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fee-shell .secondary-button:hover {
+  background: var(--riso-yellow);
+  border-color: var(--riso-ink);
+  box-shadow: 2px 2px 0 var(--riso-ink);
+  transform: translate(2px, 2px);
+}
+
+.fee-shell .row-submit-button {
+  background: var(--riso-teal);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 var(--riso-ink);
+  color: #fffef6;
+  font-weight: 700;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fee-shell .row-submit-button:hover:not(:disabled) {
+  background: var(--riso-teal);
+  box-shadow: 1px 1px 0 var(--riso-ink);
+  transform: translate(2px, 2px);
+}
+
+.fee-shell .row-submit-button:disabled {
+  background: var(--riso-paper);
+  border-color: rgba(23, 18, 15, 0.25);
+  box-shadow: none;
+  color: rgba(23, 18, 15, 0.38);
+}
+
+/* ── Form inputs ─────────────────────────────────────── */
+
+.fee-shell .form-field input,
+.fee-shell .form-field select,
+.fee-shell .form-field textarea,
+.fee-shell .phone-row input,
+.fee-shell .phone-row select,
+.fee-shell .contact-row input,
+.fee-shell .table-remarks-input,
+.fee-shell .table-time-input,
+.fee-shell .audit-filters-container select,
+.fee-shell .audit-filters-container input,
+.fee-shell .attendance-filters input[type="date"] {
+  background: #fffef6;
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  color: var(--riso-ink);
+}
+
+.fee-shell .form-field input:focus,
+.fee-shell .form-field select:focus,
+.fee-shell .form-field textarea:focus,
+.fee-shell .phone-row input:focus,
+.fee-shell .phone-row select:focus,
+.fee-shell .contact-row input:focus,
+.fee-shell .audit-filters-container select:focus,
+.fee-shell .audit-filters-container input:focus {
+  background: #fffef6;
+  border-color: var(--riso-ink);
+  box-shadow: 3px 3px 0 var(--riso-teal);
+}
+
+.fee-shell .student-search {
+  background: #fffef6;
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .student-search:focus-within {
+  background: #fffef6;
+  border-color: var(--riso-ink);
+  box-shadow: 3px 3px 0 var(--riso-teal);
+}
+
+.fee-shell .student-select-dropdown {
+  background: #fffef6;
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  color: var(--riso-ink);
+}
+
+.fee-shell .student-select-dropdown:focus {
+  border-color: var(--riso-ink);
+  box-shadow: 3px 3px 0 var(--riso-teal);
+}
+
+/* ── Segmented control ───────────────────────────────── */
+
+.fee-shell .segmented-control {
+  background: var(--riso-paper);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .segmented-control button {
+  border-radius: 0;
+  color: rgba(23, 18, 15, 0.55);
+}
+
+.fee-shell .segmented-control .selected {
+  background: var(--riso-teal);
+  box-shadow: none;
+  color: #fffef6;
+}
+
+/* ── Status / badge elements ─────────────────────────── */
+
+.fee-shell .status-pill {
+  border-radius: 0;
+}
+
+.fee-shell .status-pill.present {
+  background: rgba(31, 143, 138, 0.13);
+  border: 1px solid var(--riso-teal);
+  color: var(--riso-teal);
+}
+
+.fee-shell .status-pill.absent {
+  background: rgba(123, 45, 51, 0.11);
+  border: 1px solid var(--riso-maroon);
+  color: var(--riso-maroon);
+}
+
+.fee-shell .stats-badge {
+  border-radius: 0;
+}
+
+.fee-shell .stats-badge.present {
+  background: rgba(31, 143, 138, 0.13);
+  border: 1px solid var(--riso-teal);
+  color: var(--riso-teal);
+}
+
+.fee-shell .stats-badge.absent {
+  background: rgba(123, 45, 51, 0.11);
+  border: 1px solid var(--riso-maroon);
+  color: var(--riso-maroon);
+}
+
+.fee-shell .faculty-card-code {
+  background: var(--riso-paper);
+  border: 1px solid rgba(23, 18, 15, 0.2);
+  border-radius: 0;
+}
+
+/* ── Status / form messages ──────────────────────────── */
+
+.fee-shell .form-status,
+.fee-shell .status-message {
+  background: rgba(255, 244, 216, 0.8);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+  color: var(--riso-ink);
+}
+
+/* ── Directory tabs ──────────────────────────────────── */
+
+.fee-shell .directory-tabs {
+  background: var(--riso-paper);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .directory-tabs .tab-btn {
+  border-radius: 0;
+}
+
+.fee-shell .directory-tabs .tab-btn.active {
+  background: var(--riso-ink);
+  box-shadow: none;
+  color: var(--paper);
+}
+
+/* ── Sub-tabs ────────────────────────────────────────── */
+
+.fee-shell .sub-tab-btn {
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .sub-tab-btn.active {
+  background: var(--riso-ink);
+  border-color: var(--riso-ink);
+  box-shadow: 2px 2px 0 var(--riso-orange);
+  color: var(--paper);
+}
+
+/* ── Attendance grid cells ───────────────────────────── */
+
+.fee-shell .grid-attendance-card {
+  border-radius: 0;
+}
+
+.fee-shell .grid-attendance-dot {
+  border-radius: 2px;
+}
+
+/* ── Drawers & Modals ────────────────────────────────── */
+
+.fee-shell .drawer-content {
+  background: var(--riso-cream);
+  border-left: 3px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .modal-content {
+  background: var(--riso-cream);
+  border: 3px solid var(--riso-ink);
+  border-radius: 0;
+  box-shadow: 8px 8px 0 var(--riso-ink);
+}
+
+.fee-shell .drawer-header,
+.fee-shell .modal-header {
+  border-bottom: 2px solid rgba(23, 18, 15, 0.2);
+}
+
+/* ── Search results dropdown ─────────────────────────── */
+
+.fee-shell .search-results button {
+  background: var(--paper);
+  border: 2px solid var(--riso-ink);
+  border-radius: 0;
+}
+
+.fee-shell .search-results button:hover {
+  background: var(--riso-paper);
+}
+
+.fee-shell .search-results button.selected {
+  background: rgba(31, 143, 138, 0.1);
+  border-color: var(--riso-teal);
+}
+
+/* ── Audit date header (inside cards) ────────────────── */
+
+.fee-shell .audit-date-header {
+  background: var(--riso-paper);
+  border-bottom: 2px solid rgba(23, 18, 15, 0.18);
+}
+
+/* ── Mobile responsive overrides ────────────────────── */
+
+@media (max-width: 1024px) {
+  .fee-shell .fee-sidebar {
+    background: var(--riso-cream);
+    border-right: 3px solid var(--riso-ink);
+    box-shadow: 8px 0 24px rgba(23, 18, 15, 0.12);
+  }
+}
+
+@media (max-width: 768px) {
+  .fee-shell .fee-topbar {
+    border-bottom: 3px solid var(--riso-ink);
+  }
+
+  .fee-shell .fee-topbar h2 {
+    font-size: 18px;
+  }
+
+  .fee-shell .audit-date-card,
+  .fee-shell .payment-history,
+  .fee-shell .payment-form,
+  .fee-shell .student-card,
+  .fee-shell .audit-header-section,
+  .fee-shell .attendance-table-container {
+    box-shadow: 4px 4px 0 var(--riso-ink);
+  }
+}
+
+@media (max-width: 600px) {
+  .fee-shell .fee-content {
+    padding: 16px;
+  }
+
+  .fee-shell .audit-date-card,
+  .fee-shell .payment-history,
+  .fee-shell .student-card,
+  .fee-shell .faculty-card,
+  .fee-shell .student-card-directory,
+  .fee-shell .payment-form,
+  .fee-shell .audit-header-section,
+  .fee-shell .attendance-table-container {
+    box-shadow: 3px 3px 0 var(--riso-ink);
+  }
+
+  .fee-shell .primary-button,
+  .fee-shell .secondary-button {
+    box-shadow: 3px 3px 0 var(--riso-ink);
+  }
+
+  .fee-shell .header-profile-card .profile-info {
+    display: none;
+  }
+
+  .fee-shell .header-profile-card .chevron-icon {
+    display: none;
+  }
+}
