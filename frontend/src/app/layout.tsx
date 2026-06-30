@@ -2,8 +2,8 @@ import "./globals.css";
 import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "School Admin Panel",
-  description: "Admin portal for school operations.",
+  title: "Blooming Daffodils",
+  description: "Planted to Grow, Destined to Flourish",
   icons: {
     icon: "/bdps-removebg-preview.png",
   }
